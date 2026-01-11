@@ -205,6 +205,9 @@ const App = () => {
   const timeFormatter = useMemo(
     () =>
       new Intl.DateTimeFormat(language === "zh" ? "zh-CN" : "en-US", {
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
         hour: "2-digit",
         minute: "2-digit"
       }),
@@ -302,6 +305,20 @@ const App = () => {
     }
   };
 
+  const handleCalendarBlockMove = (blockId: string, start: string, end: string) => {
+    setPlan((prev) => {
+      if (!prev) {
+        return prev;
+      }
+      return {
+        ...prev,
+        blocks: prev.blocks.map((block) =>
+          block.id === blockId ? { ...block, start, end, locked: true } : block
+        )
+      };
+    });
+  };
+
   const closeTaskDetail = () => {
     setTaskDetail(null);
     setTaskCompleted(0);
@@ -365,6 +382,22 @@ const App = () => {
 
   const handleDeleteTask = (taskId: string) => {
     setTasks((prev) => prev.filter((task) => task.id !== taskId));
+    setPlan((prev) => {
+      if (!prev) {
+        return prev;
+      }
+      return {
+        ...prev,
+        blocks: prev.blocks.filter((block) => block.taskId !== taskId),
+        warnings: prev.warnings.filter((warning) => warning.taskId !== taskId)
+      };
+    });
+    if (taskDetail?.id === taskId) {
+      closeTaskDetail();
+    }
+    if (selectedTask?.id === taskId) {
+      handleResetDraft();
+    }
   };
 
   const handleAddCategory = (name: string) => {
@@ -574,7 +607,6 @@ const App = () => {
       </div>
       <header className="app-header">
         <div>
-          <p className="eyebrow">{t("header.eyebrow")}</p>
           <h1>{currentTime}</h1>
         </div>
         <div className="status">{statusMessage}</div>
@@ -626,6 +658,7 @@ const App = () => {
             viewMode={calendarView}
             onViewModeChange={setCalendarView}
             onBlockSelect={handleCalendarBlockSelect}
+            onBlockMove={handleCalendarBlockMove}
           />
         </div>
         <div className="column side">

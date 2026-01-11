@@ -639,6 +639,11 @@ textarea {
   scrollbar-width: none;
 }
 
+.segment-body.drag-over {
+  background: #fff2e6;
+  outline: 1px dashed var(--accent);
+}
+
 .segment-body::-webkit-scrollbar {
   width: 0;
   height: 0;

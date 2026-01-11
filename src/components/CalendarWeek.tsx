@@ -1,4 +1,5 @@
-﻿import type { CalendarEvent, CalendarViewMode, PlannedBlock, Settings } from "../lib/types";
+import { useState } from "react";
+import type { CalendarEvent, CalendarViewMode, PlannedBlock, Settings } from "../lib/types";
 import { addDays, dayKey, formatShortDate, formatTimeRange, startOfDay } from "../lib/time";
 
 const segments = [
@@ -16,6 +17,7 @@ type CalendarWeekProps = {
   viewMode: CalendarViewMode;
   onViewModeChange: (mode: CalendarViewMode) => void;
   onBlockSelect: (block: PlannedBlock) => void;
+  onBlockMove: (blockId: string, start: string, end: string) => void;
 };
 
 type SegmentItem = {
@@ -46,8 +48,10 @@ const CalendarWeek = ({
   t,
   viewMode,
   onViewModeChange,
-  onBlockSelect
+  onBlockSelect,
+  onBlockMove
 }: CalendarWeekProps) => {
+  const [dragTarget, setDragTarget] = useState<string | null>(null);
   const today = startOfDay(new Date());
   const dayCount = Math.min(viewMode === "week" ? 7 : 3, settings.planningHorizonDays);
   const days = Array.from({ length: dayCount }, (_, index) => addDays(today, index));
@@ -63,6 +67,18 @@ const CalendarWeek = ({
     acc[key] = acc[key] ? [...acc[key], event] : [event];
     return acc;
   }, {});
+
+  const handleDrop = (blockId: string, day: Date, segmentStart: number) => {
+    const block = blocks.find((item) => item.id === blockId);
+    if (!block) {
+      return;
+    }
+    const start = new Date(day);
+    start.setHours(Math.floor(segmentStart / 60), segmentStart % 60, 0, 0);
+    const durationMs = new Date(block.end).getTime() - new Date(block.start).getTime();
+    const end = new Date(start.getTime() + Math.max(durationMs, 0));
+    onBlockMove(blockId, start.toISOString(), end.toISOString());
+  };
 
   return (
     <div className="panel calendar-panel">
@@ -126,7 +142,25 @@ const CalendarWeek = ({
                       return (
                         <div key={segment.key} className="segment">
                           <div className="segment-header">{t(segment.labelKey)}</div>
-                          <div className="segment-body">
+                          <div
+                            className={`segment-body ${
+                              dragTarget === `${key}-${segment.key}` ? "drag-over" : ""
+                            }`}
+                            onDragOver={(event) => {
+                              event.preventDefault();
+                              event.dataTransfer.dropEffect = "move";
+                            }}
+                            onDragEnter={() => setDragTarget(`${key}-${segment.key}`)}
+                            onDragLeave={() => setDragTarget(null)}
+                            onDrop={(event) => {
+                              event.preventDefault();
+                              const blockId = event.dataTransfer.getData("text/plain");
+                              if (blockId) {
+                                handleDrop(blockId, day, segment.start);
+                              }
+                              setDragTarget(null);
+                            }}
+                          >
                             {items.length === 0 ? (
                               <div className="empty">{t("calendar.empty")}</div>
                             ) : (
@@ -137,6 +171,13 @@ const CalendarWeek = ({
                                     item.kind === "block" ? "clickable" : ""
                                   }`}
                                   title={formatTimeRange(item.start, item.end)}
+                                  draggable={item.kind === "block"}
+                                  onDragStart={(event) => {
+                                    if (item.kind === "block" && item.block) {
+                                      event.dataTransfer.setData("text/plain", item.block.id);
+                                      event.dataTransfer.effectAllowed = "move";
+                                    }
+                                  }}
                                   onClick={() => {
                                     if (item.kind === "block" && item.block) {
                                       onBlockSelect(item.block);
