@@ -1,0 +1,35 @@
+{
+  "build": {
+    "beforeDevCommand": "",
+    "beforeBuildCommand": "",
+    "devPath": "http://localhost:5173",
+    "distDir": "../dist"
+  },
+  "package": {
+    "productName": "Cland Planner",
+    "version": "0.1.0"
+  },
+  "tauri": {
+    "allowlist": {
+      "all": true
+    },
+    "windows": [
+      {
+        "title": "Cland Planner",
+        "width": 1280,
+        "height": 860,
+        "resizable": true,
+        "decorations": false
+      }
+    ],
+    "bundle": {
+      "active": true,
+      "targets": "all",
+      "identifier": "com.cland.planner",
+      "icon": [
+        "icons/icon.ico",
+        "icons/icon.png"
+      ]
+    }
+  }
+}
