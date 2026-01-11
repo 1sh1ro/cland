@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import type { CalendarEvent, CalendarViewMode, PlannedBlock, Settings } from "../lib/types";
 import { addDays, dayKey, formatShortDate, formatTimeRange, startOfDay } from "../lib/time";
 
@@ -52,14 +52,24 @@ const CalendarWeek = ({
   onBlockMove
 }: CalendarWeekProps) => {
   const [dragTarget, setDragTarget] = useState<string | null>(null);
-  const [pointerDrag, setPointerDrag] = useState<{ blockId: string; startX: number; startY: number } | null>(
-    null
-  );
+  const [pointerDrag, setPointerDrag] = useState<{
+    blockId: string;
+    startX: number;
+    startY: number;
+    pointerId: number;
+  } | null>(null);
+  const [dropTarget, setDropTarget] = useState<{ key: string; segmentStart: number } | null>(null);
   const [isPointerDragging, setIsPointerDragging] = useState(false);
   const [suppressClickId, setSuppressClickId] = useState<string | null>(null);
   const today = startOfDay(new Date());
   const dayCount = Math.min(viewMode === "week" ? 7 : 3, settings.planningHorizonDays);
   const days = Array.from({ length: dayCount }, (_, index) => addDays(today, index));
+  const dayByKey = useMemo(() => {
+    return days.reduce<Map<string, Date>>((acc, day) => {
+      acc.set(dayKey(day), day);
+      return acc;
+    }, new Map());
+  }, [days]);
 
   const blocksByDay = blocks.reduce<Record<string, PlannedBlock[]>>((acc, block) => {
     const key = dayKey(new Date(block.start));
@@ -83,6 +93,32 @@ const CalendarWeek = ({
     const durationMs = new Date(block.end).getTime() - new Date(block.start).getTime();
     const end = new Date(start.getTime() + Math.max(durationMs, 0));
     onBlockMove(blockId, start.toISOString(), end.toISOString());
+  };
+
+  const updateDropTargetFromPointer = (clientX: number, clientY: number) => {
+    const element = document.elementFromPoint(clientX, clientY);
+    const segmentBody = element?.closest(".segment-body") as HTMLElement | null;
+    if (!segmentBody) {
+      setDropTarget(null);
+      setDragTarget(null);
+      return;
+    }
+    const key = segmentBody.dataset.dayKey;
+    const segmentStart = Number(segmentBody.dataset.segmentStart);
+    if (!key || Number.isNaN(segmentStart)) {
+      setDropTarget(null);
+      setDragTarget(null);
+      return;
+    }
+    setDropTarget({ key, segmentStart });
+    setDragTarget(`${key}-${segmentStart}`);
+  };
+
+  const resetPointerDrag = () => {
+    setPointerDrag(null);
+    setIsPointerDragging(false);
+    setDragTarget(null);
+    setDropTarget(null);
   };
 
   return (
@@ -149,41 +185,10 @@ const CalendarWeek = ({
                           <div className="segment-header">{t(segment.labelKey)}</div>
                           <div
                             className={`segment-body ${
-                              dragTarget === `${key}-${segment.key}` ? "drag-over" : ""
+                              dragTarget === `${key}-${segment.start}` ? "drag-over" : ""
                             }`}
-                            onPointerEnter={() => {
-                              if (isPointerDragging) {
-                                setDragTarget(`${key}-${segment.key}`);
-                              }
-                            }}
-                            onPointerMove={() => {
-                              if (isPointerDragging) {
-                                setDragTarget(`${key}-${segment.key}`);
-                              }
-                            }}
-                            onPointerUp={(event) => {
-                              if (isPointerDragging && pointerDrag) {
-                                event.preventDefault();
-                                handleDrop(pointerDrag.blockId, day, segment.start);
-                              }
-                              setPointerDrag(null);
-                              setIsPointerDragging(false);
-                              setDragTarget(null);
-                            }}
-                            onDragOver={(event) => {
-                              event.preventDefault();
-                              event.dataTransfer.dropEffect = "move";
-                            }}
-                            onDragEnter={() => setDragTarget(`${key}-${segment.key}`)}
-                            onDragLeave={() => setDragTarget(null)}
-                            onDrop={(event) => {
-                              event.preventDefault();
-                              const blockId = event.dataTransfer.getData("text/plain");
-                              if (blockId) {
-                                handleDrop(blockId, day, segment.start);
-                              }
-                              setDragTarget(null);
-                            }}
+                            data-day-key={key}
+                            data-segment-start={segment.start}
                           >
                             {items.length === 0 ? (
                               <div className="empty">{t("calendar.empty")}</div>
@@ -193,23 +198,18 @@ const CalendarWeek = ({
                                   key={`${segment.key}-${item.kind}-${item.id}`}
                                   className={`segment-item ${item.kind} ${item.locked ? "locked" : ""} ${
                                     item.kind === "block" ? "clickable" : ""
-                                  }`}
+                                  } ${item.kind === "block" && pointerDrag?.blockId === item.block?.id ? "dragging" : ""}`}
                                   title={formatTimeRange(item.start, item.end)}
-                                  draggable={item.kind === "block"}
-                                  onDragStart={(event) => {
-                                    if (item.kind === "block" && item.block) {
-                                      event.dataTransfer.setData("text/plain", item.block.id);
-                                      event.dataTransfer.effectAllowed = "move";
-                                    }
-                                  }}
                                   onPointerDown={(event) => {
                                     if (item.kind !== "block" || !item.block) {
                                       return;
                                     }
+                                    event.currentTarget.setPointerCapture(event.pointerId);
                                     setPointerDrag({
                                       blockId: item.block.id,
                                       startX: event.clientX,
-                                      startY: event.clientY
+                                      startY: event.clientY,
+                                      pointerId: event.pointerId
                                     });
                                     setIsPointerDragging(false);
                                   }}
@@ -217,7 +217,7 @@ const CalendarWeek = ({
                                     if (item.kind !== "block" || !item.block || !pointerDrag) {
                                       return;
                                     }
-                                    if (pointerDrag.blockId !== item.block.id) {
+                                    if (pointerDrag.blockId !== item.block.id || pointerDrag.pointerId !== event.pointerId) {
                                       return;
                                     }
                                     if (!isPointerDragging) {
@@ -226,14 +226,28 @@ const CalendarWeek = ({
                                       if (Math.hypot(dx, dy) > 6) {
                                         setIsPointerDragging(true);
                                         setSuppressClickId(item.block.id);
+                                        updateDropTargetFromPointer(event.clientX, event.clientY);
                                       }
+                                      return;
+                                    }
+                                    updateDropTargetFromPointer(event.clientX, event.clientY);
+                                  }}
+                                  onPointerUp={(event) => {
+                                    if (pointerDrag && pointerDrag.pointerId === event.pointerId) {
+                                      if (isPointerDragging && dropTarget) {
+                                        const dayForDrop = dayByKey.get(dropTarget.key);
+                                        if (dayForDrop) {
+                                          handleDrop(pointerDrag.blockId, dayForDrop, dropTarget.segmentStart);
+                                        }
+                                      }
+                                      resetPointerDrag();
+                                      event.currentTarget.releasePointerCapture(event.pointerId);
                                     }
                                   }}
-                                  onPointerUp={() => {
-                                    if (isPointerDragging) {
-                                      setPointerDrag(null);
-                                      setIsPointerDragging(false);
-                                      setDragTarget(null);
+                                  onPointerCancel={(event) => {
+                                    if (pointerDrag && pointerDrag.pointerId === event.pointerId) {
+                                      resetPointerDrag();
+                                      event.currentTarget.releasePointerCapture(event.pointerId);
                                     }
                                   }}
                                   onClick={() => {
