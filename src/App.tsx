@@ -162,6 +162,25 @@ const normalizeTask = (task: Task): Task => {
   };
 };
 
+const AppLogo = () => (
+  <svg className="app-logo" viewBox="0 0 48 48" aria-hidden="true">
+    <defs>
+      <linearGradient id="clandLogoGradient" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0%" stopColor="#f05a2b" />
+        <stop offset="100%" stopColor="#f29f5c" />
+      </linearGradient>
+    </defs>
+    <rect x="4" y="4" width="40" height="40" rx="12" fill="url(#clandLogoGradient)" />
+    <path
+      d="M31 16 A12 12 0 1 0 31 32"
+      fill="none"
+      stroke="#fffaf2"
+      strokeWidth="4.5"
+      strokeLinecap="round"
+    />
+  </svg>
+);
+
 const GithubIcon = () => (
   <svg className="github-icon" viewBox="0 0 24 24" aria-hidden="true">
     <path
@@ -601,6 +620,7 @@ const App = () => {
     <div className="app">
       <div className="titlebar">
         <div className="titlebar-left" data-tauri-drag-region>
+          <AppLogo />
           <span className="product-name">{t("header.eyebrow")}</span>
         </div>
         <div className="titlebar-center">

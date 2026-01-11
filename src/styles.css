@@ -87,6 +87,12 @@ body {
   gap: 10px;
 }
 
+.app-logo {
+  width: 26px;
+  height: 26px;
+  flex: 0 0 auto;
+}
+
 .product-name {
   font-size: 12px;
   font-weight: 700;
