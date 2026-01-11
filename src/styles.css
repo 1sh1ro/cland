@@ -348,6 +348,11 @@ textarea {
   min-height: 80px;
 }
 
+.settings-textarea {
+  min-height: 140px;
+  resize: vertical;
+}
+
 .button {
   background: var(--bg-accent);
   border: 1px solid var(--line);

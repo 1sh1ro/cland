@@ -7,7 +7,12 @@ import SettingsPanel from "./components/SettingsPanel";
 import MemoPanel from "./components/MemoPanel";
 import KnowledgeBasePanel from "./components/KnowledgeBasePanel";
 import KnowledgeAiPanel from "./components/KnowledgeAiPanel";
-import { parseTasksFromText, suggestCategoryForEntry, answerKnowledgeQuestion } from "./lib/api";
+import {
+  DEFAULT_TASK_SYSTEM_PROMPT,
+  parseTasksFromText,
+  suggestCategoryForEntry,
+  answerKnowledgeQuestion
+} from "./lib/api";
 import { createTranslator, type Language } from "./lib/i18n";
 import { loadFromStorage, saveToStorage } from "./lib/storage";
 import { fromLocalInputValue, toLocalInputValue } from "./lib/time";
@@ -80,7 +85,24 @@ const defaultApiSettings: ApiSettings = {
   provider: coerceProvider(import.meta.env.VITE_API_PROVIDER),
   baseUrl: import.meta.env.VITE_API_BASE_URL || "https://api.longcat.chat/openai",
   apiKey: import.meta.env.VITE_API_KEY || "",
-  model: import.meta.env.VITE_API_MODEL || "LongCat-Flash-Chat"
+  model: import.meta.env.VITE_API_MODEL || "LongCat-Flash-Chat",
+  taskSystemPrompt: DEFAULT_TASK_SYSTEM_PROMPT
+};
+
+const coerceApiSettings = (value: unknown): ApiSettings => {
+  if (!value || typeof value !== "object") {
+    return defaultApiSettings;
+  }
+  const candidate = value as Partial<ApiSettings>;
+  return {
+    ...defaultApiSettings,
+    ...candidate,
+    provider: coerceProvider(typeof candidate.provider === "string" ? candidate.provider : undefined),
+    taskSystemPrompt:
+      typeof candidate.taskSystemPrompt === "string" && candidate.taskSystemPrompt.trim()
+        ? candidate.taskSystemPrompt
+        : defaultApiSettings.taskSystemPrompt
+  };
 };
 
 const createEmptyDraft = (): TaskDraft => ({
@@ -157,7 +179,7 @@ const App = () => {
   const [events, setEvents] = useState<CalendarEvent[]>(() => loadFromStorage(STORAGE_KEYS.events, []));
   const [settings, setSettings] = useState<Settings>(() => loadFromStorage(STORAGE_KEYS.settings, defaultSettings));
   const [apiSettings, setApiSettings] = useState<ApiSettings>(() =>
-    loadFromStorage(STORAGE_KEYS.apiSettings, defaultApiSettings)
+    coerceApiSettings(loadFromStorage(STORAGE_KEYS.apiSettings, defaultApiSettings))
   );
   const [plan, setPlan] = useState<PlanResult | null>(() => loadFromStorage(STORAGE_KEYS.plan, null));
   const [aiAssumptions, setAiAssumptions] = useState<string[]>(() => loadFromStorage(STORAGE_KEYS.assumptions, []));

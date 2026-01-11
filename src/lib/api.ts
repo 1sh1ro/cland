@@ -1,4 +1,16 @@
-﻿import type { ApiSettings, PlanResult, Task } from "./types";
+import type { ApiSettings, PlanResult, Task } from "./types";
+
+export const DEFAULT_TASK_SYSTEM_PROMPT = `You extract structured tasks for a planner. Return JSON only (no Markdown, no extra text).
+JSON shape: { "tasks": [ { "title": string, "description": string, "estimated_minutes": number, "deadline": string | null, "earliest_start": string | null, "priority": number (1-5), "interruptible": boolean, "min_block_minutes": number, "max_block_minutes": number | null, "preferred_time_windows": [{"days": ["Mon"], "start": "09:00", "end": "12:00"}], "assumptions": [string] } ], "assumptions": [string] }.
+Planning guidance:
+- Use timezone {{timezone}}. Dates must be ISO 8601 with timezone (e.g. 2026-01-15T18:00:00+08:00), or null.
+- Default working hours are {{workDayStart}}-{{workDayEnd}}. Map time-of-day mentions to preferred_time_windows: morning 09:00-12:00, afternoon 13:00-18:00, evening 19:00-22:00, lunch 12:00-13:00 (avoid).
+- If multiple tasks are mentioned, split into multiple tasks.
+- If duration is given, convert to minutes. If missing, infer a reasonable estimate and add an assumption explaining the basis.
+- Choose interruptible/min/max blocks to help scheduling: short tasks (<=60m) use 30m blocks; medium (60-180m) use 60m blocks; long (>180m) use 60-120m blocks. If user says uninterrupted/continuous, set interruptible=false and min/max to full estimate.
+- Set priority using urgency and importance cues (deadline soon, "ASAP", "important"). If not stated, default to 3 and add an assumption.
+- If phrases like "today", "tonight", "this afternoon", or "next week" are used, translate them into earliest_start/deadline and add an assumption.
+- Always include assumptions for any defaults or inferences.`;
 
 const extractJson = (value: string) => {
   const first = value.indexOf("{");
@@ -72,21 +84,23 @@ const callModel = async (settings: ApiSettings, messages: Array<{ role: string; 
   return callOpenAI(settings, messages);
 };
 
+const applyPromptContext = (
+  prompt: string,
+  context: { timezone: string; workDayStart: string; workDayEnd: string }
+) => {
+  return prompt
+    .replaceAll("{{timezone}}", context.timezone)
+    .replaceAll("{{workDayStart}}", context.workDayStart)
+    .replaceAll("{{workDayEnd}}", context.workDayEnd);
+};
+
 export const parseTasksFromText = async (
   input: string,
   settings: ApiSettings,
   context: { timezone: string; workDayStart: string; workDayEnd: string }
 ): Promise<{ tasks: Task[]; assumptions: string[] }> => {
-  const systemPrompt = `You extract structured tasks for a planner. Return JSON only (no Markdown, no extra text).
-JSON shape: { "tasks": [ { "title": string, "description": string, "estimated_minutes": number, "deadline": string | null, "earliest_start": string | null, "priority": number (1-5), "interruptible": boolean, "min_block_minutes": number, "max_block_minutes": number | null, "preferred_time_windows": [{"days": ["Mon"], "start": "09:00", "end": "12:00"}], "assumptions": [string] } ], "assumptions": [string] }.
-Planning guidance:
-- Use timezone ${context.timezone}. Dates must be ISO 8601 with timezone (e.g. 2026-01-15T18:00:00+08:00), or null.
-- Default working hours are ${context.workDayStart}-${context.workDayEnd}. Map time-of-day mentions to preferred_time_windows: morning 09:00-12:00, afternoon 13:00-18:00, evening 19:00-22:00, lunch 12:00-13:00 (avoid).
-- If duration is given, convert to minutes. If missing, infer a reasonable estimate and add an assumption explaining the basis.
-- Choose interruptible/min/max blocks to help scheduling: short tasks (<=60m) use 30m blocks; medium (60-180m) use 60m blocks; long (>180m) use 60-120m blocks. If user says uninterrupted/continuous, set interruptible=false and min/max to full estimate.
-- Set priority using urgency and importance cues (deadline soon, "ASAP", "important"). If not stated, default to 3 and add an assumption.
-- If phrases like "today", "tonight", "this afternoon", or "next week" are used, translate them into earliest_start/deadline and add an assumption.
-- Always include assumptions for any defaults or inferences.`;
+  const promptTemplate = settings.taskSystemPrompt?.trim() || DEFAULT_TASK_SYSTEM_PROMPT;
+  const systemPrompt = applyPromptContext(promptTemplate, context);
 
   const userPrompt = `Task input:\n${input}`;
 
