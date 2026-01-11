@@ -52,6 +52,11 @@ const CalendarWeek = ({
   onBlockMove
 }: CalendarWeekProps) => {
   const [dragTarget, setDragTarget] = useState<string | null>(null);
+  const [pointerDrag, setPointerDrag] = useState<{ blockId: string; startX: number; startY: number } | null>(
+    null
+  );
+  const [isPointerDragging, setIsPointerDragging] = useState(false);
+  const [suppressClickId, setSuppressClickId] = useState<string | null>(null);
   const today = startOfDay(new Date());
   const dayCount = Math.min(viewMode === "week" ? 7 : 3, settings.planningHorizonDays);
   const days = Array.from({ length: dayCount }, (_, index) => addDays(today, index));
@@ -146,6 +151,25 @@ const CalendarWeek = ({
                             className={`segment-body ${
                               dragTarget === `${key}-${segment.key}` ? "drag-over" : ""
                             }`}
+                            onPointerEnter={() => {
+                              if (isPointerDragging) {
+                                setDragTarget(`${key}-${segment.key}`);
+                              }
+                            }}
+                            onPointerMove={() => {
+                              if (isPointerDragging) {
+                                setDragTarget(`${key}-${segment.key}`);
+                              }
+                            }}
+                            onPointerUp={(event) => {
+                              if (isPointerDragging && pointerDrag) {
+                                event.preventDefault();
+                                handleDrop(pointerDrag.blockId, day, segment.start);
+                              }
+                              setPointerDrag(null);
+                              setIsPointerDragging(false);
+                              setDragTarget(null);
+                            }}
                             onDragOver={(event) => {
                               event.preventDefault();
                               event.dataTransfer.dropEffect = "move";
@@ -178,7 +202,45 @@ const CalendarWeek = ({
                                       event.dataTransfer.effectAllowed = "move";
                                     }
                                   }}
+                                  onPointerDown={(event) => {
+                                    if (item.kind !== "block" || !item.block) {
+                                      return;
+                                    }
+                                    setPointerDrag({
+                                      blockId: item.block.id,
+                                      startX: event.clientX,
+                                      startY: event.clientY
+                                    });
+                                    setIsPointerDragging(false);
+                                  }}
+                                  onPointerMove={(event) => {
+                                    if (item.kind !== "block" || !item.block || !pointerDrag) {
+                                      return;
+                                    }
+                                    if (pointerDrag.blockId !== item.block.id) {
+                                      return;
+                                    }
+                                    if (!isPointerDragging) {
+                                      const dx = event.clientX - pointerDrag.startX;
+                                      const dy = event.clientY - pointerDrag.startY;
+                                      if (Math.hypot(dx, dy) > 6) {
+                                        setIsPointerDragging(true);
+                                        setSuppressClickId(item.block.id);
+                                      }
+                                    }
+                                  }}
+                                  onPointerUp={() => {
+                                    if (isPointerDragging) {
+                                      setPointerDrag(null);
+                                      setIsPointerDragging(false);
+                                      setDragTarget(null);
+                                    }
+                                  }}
                                   onClick={() => {
+                                    if (item.kind === "block" && suppressClickId === item.block?.id) {
+                                      setSuppressClickId(null);
+                                      return;
+                                    }
                                     if (item.kind === "block" && item.block) {
                                       onBlockSelect(item.block);
                                     }

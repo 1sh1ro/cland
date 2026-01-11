@@ -676,6 +676,14 @@ textarea {
 }
 
 .segment-item.block {
+  cursor: grab;
+}
+
+.segment-item.block:active {
+  cursor: grabbing;
+}
+
+.segment-item.block {
   background: #ffd7c4;
   border-color: #f3b79b;
 }
