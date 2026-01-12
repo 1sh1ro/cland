@@ -1,4 +1,5 @@
-﻿import type { Task } from "../lib/types";
+import { useEffect, useState } from "react";
+import type { Task } from "../lib/types";
 
 export type TaskDraft = {
   title: string;
@@ -19,11 +20,27 @@ type TaskFormProps = {
   onReset: () => void;
   selectedTask: Task | null;
   t: (key: string) => string;
+  highlightKey?: number;
 };
 
-const TaskForm = ({ draft, onChange, onSubmit, onReset, selectedTask, t }: TaskFormProps) => {
+const TaskForm = ({ draft, onChange, onSubmit, onReset, selectedTask, t, highlightKey }: TaskFormProps) => {
+  const [pulse, setPulse] = useState(false);
+
+  useEffect(() => {
+    if (!highlightKey) {
+      return;
+    }
+    setPulse(false);
+    const frame = requestAnimationFrame(() => setPulse(true));
+    const timer = window.setTimeout(() => setPulse(false), 1400);
+    return () => {
+      cancelAnimationFrame(frame);
+      clearTimeout(timer);
+    };
+  }, [highlightKey]);
+
   return (
-    <div className="panel">
+    <div className={`panel task-form ${pulse ? "pulse" : ""}`}>
       <div className="panel-header">
         <h2>{selectedTask ? t("taskForm.edit") : t("taskForm.new")}</h2>
       </div>

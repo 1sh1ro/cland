@@ -247,6 +247,7 @@ const App = () => {
   const [isParsing, setIsParsing] = useState(false);
   const [isExplaining, setIsExplaining] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [taskFormPulseKey, setTaskFormPulseKey] = useState(0);
   const [now, setNow] = useState(() => new Date());
 
   const t = useMemo(() => createTranslator(language), [language]);
@@ -602,6 +603,10 @@ const App = () => {
     }
   };
 
+  const triggerTaskFormPulse = () => {
+    setTaskFormPulseKey(Date.now());
+  };
+
   const handleExplainPlan = async () => {
     if (!plan || plan.blocks.length === 0) {
       setStatusMessage(t("status.noPlan"));
@@ -704,6 +709,7 @@ const App = () => {
             onSubmit={handleSaveTask}
             onReset={handleResetDraft}
             selectedTask={selectedTask}
+            highlightKey={taskFormPulseKey}
             t={t}
           />
           <div className="panel">
@@ -905,6 +911,7 @@ const App = () => {
                   className="button ghost"
                   onClick={() => {
                     handleSelectTask(taskDetail);
+                    triggerTaskFormPulse();
                     closeTaskDetail();
                   }}
                 >

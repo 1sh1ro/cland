@@ -186,8 +186,8 @@ body {
 }
 
 .layout {
-  --left-col: 380px;
-  --sidebar-col: 380px;
+  --left-col: 400px;
+  --sidebar-col: 400px;
   display: grid;
   grid-template-columns: var(--left-col) minmax(560px, 1fr) var(--sidebar-col);
   gap: 18px;
@@ -273,6 +273,10 @@ body {
   box-shadow: var(--shadow);
   overflow: hidden;
   animation: panelFade 0.6s ease both;
+}
+
+.task-form.pulse {
+  animation: formPulse 1.4s ease-in-out 1;
 }
 
 .panel-header {
@@ -907,6 +911,29 @@ textarea {
   }
   100% {
     box-shadow: 0 0 0 0 rgba(240, 90, 43, 0);
+  }
+}
+
+@keyframes formPulse {
+  0% {
+    box-shadow: var(--shadow);
+    border-color: var(--line);
+  }
+  20% {
+    box-shadow: 0 0 0 0 rgba(240, 90, 43, 0.25), 0 0 0 4px rgba(240, 90, 43, 0.2);
+    border-color: var(--accent);
+  }
+  40% {
+    box-shadow: var(--shadow);
+    border-color: var(--line);
+  }
+  60% {
+    box-shadow: 0 0 0 0 rgba(240, 90, 43, 0.25), 0 0 0 4px rgba(240, 90, 43, 0.2);
+    border-color: var(--accent);
+  }
+  100% {
+    box-shadow: var(--shadow);
+    border-color: var(--line);
   }
 }
 
