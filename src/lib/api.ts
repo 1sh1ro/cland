@@ -145,13 +145,29 @@ export const parseTasksFromText = async (
 export const explainPlan = async (
   plan: PlanResult,
   tasks: Task[],
-  settings: ApiSettings
+  apiSettings: ApiSettings,
+  options: { language: "zh" | "en"; timezone: string; workDayStart: string; workDayEnd: string }
 ): Promise<string> => {
-  const prompt = `Explain the schedule in concise bullet points and mention conflicts or risks. Provide 2 alternative strategies (conservative and aggressive). Keep it under 180 words.\n\nTasks: ${JSON.stringify(tasks)}\nPlan: ${JSON.stringify(plan)}`;
+  const systemPrompt = `You are a scheduling analyst. Explain why the plan is arranged the way it is.
+Use ${options.language === "zh" ? "Chinese" : "English"}.
+Be practical, focus on timing logic (deadline, priority, preferred windows, daily limits).`;
 
-  const content = await callModel(settings, [
-    { role: "system", content: "You are a planning assistant." },
-    { role: "user", content: prompt }
+  const userPrompt = `Explain the schedule with these rules:
+- Mention per-task reasons for placement (why morning/afternoon/evening, or why near deadline).
+- Call out conflicts/risks from warnings and any unscheduled minutes.
+- Keep it concise (<= 200 words) and use bullets if helpful.
+- If no blocks exist, say the plan is empty and suggest generating again.
+
+Context:
+- Timezone: ${options.timezone}
+- Working hours: ${options.workDayStart}-${options.workDayEnd}
+
+Tasks: ${JSON.stringify(tasks)}
+Plan: ${JSON.stringify(plan)}`;
+
+  const content = await callModel(apiSettings, [
+    { role: "system", content: systemPrompt },
+    { role: "user", content: userPrompt }
   ]);
 
   return content.trim();

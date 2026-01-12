@@ -11,7 +11,8 @@ import {
   DEFAULT_TASK_SYSTEM_PROMPT,
   parseTasksFromText,
   suggestCategoryForEntry,
-  answerKnowledgeQuestion
+  answerKnowledgeQuestion,
+  explainPlan
 } from "./lib/api";
 import { createTranslator, type Language } from "./lib/i18n";
 import { loadFromStorage, saveToStorage } from "./lib/storage";
@@ -238,8 +239,11 @@ const App = () => {
   const [draft, setDraft] = useState<TaskDraft>(() => createEmptyDraft());
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [inputText, setInputText] = useState("");
+  const [explanation, setExplanation] = useState("");
+  const [explanationOpen, setExplanationOpen] = useState(false);
   const [statusMessage, setStatusMessage] = useState("");
   const [isParsing, setIsParsing] = useState(false);
+  const [isExplaining, setIsExplaining] = useState(false);
   const [now, setNow] = useState(() => new Date());
 
   const t = useMemo(() => createTranslator(language), [language]);
@@ -595,6 +599,33 @@ const App = () => {
     }
   };
 
+  const handleExplainPlan = async () => {
+    if (!plan || plan.blocks.length === 0) {
+      setStatusMessage(t("status.noPlan"));
+      return;
+    }
+    if (!apiSettings.apiKey) {
+      setStatusMessage(t("status.explainNeedKey"));
+      return;
+    }
+    setIsExplaining(true);
+    setExplanation("");
+    try {
+      const content = await explainPlan(plan, tasks, apiSettings, {
+        language,
+        timezone: settings.timezone,
+        workDayStart: settings.workDayStart,
+        workDayEnd: settings.workDayEnd
+      });
+      setExplanation(content);
+      setExplanationOpen(true);
+    } catch (error) {
+      setStatusMessage(error instanceof Error ? error.message : t("status.explainFailed"));
+    } finally {
+      setIsExplaining(false);
+    }
+  };
+
   const handleMinimize = async () => {
     if (!isTauri) {
       return;
@@ -683,9 +714,14 @@ const App = () => {
                 onChange={(event) => setInputText(event.target.value)}
                 placeholder={t("nl.placeholder")}
               />
-              <button className="button" onClick={handleParse} disabled={isParsing}>
-                {isParsing ? t("nl.parsing") : t("nl.parse")}
-              </button>
+              <div className="button-row">
+                <button className="button" onClick={handleParse} disabled={isParsing}>
+                  {isParsing ? t("nl.parsing") : t("nl.parse")}
+                </button>
+                <button className="button ghost" onClick={handleExplainPlan} disabled={isExplaining}>
+                  {isExplaining ? t("nl.explaining") : t("nl.explain")}
+                </button>
+              </div>
             </div>
           </div>
           <TaskList tasks={tasks} onSelect={openTaskDetail} onDelete={handleDeleteTask} t={t} />
@@ -860,6 +896,25 @@ const App = () => {
                 <button className="button primary" onClick={saveTaskProgress}>
                   {t("modal.save")}
                 </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
+      {explanationOpen ? (
+        <div className="modal-backdrop" onClick={() => setExplanationOpen(false)}>
+          <div className="modal-card" onClick={(event) => event.stopPropagation()}>
+            <button className="button ghost tiny modal-close" onClick={() => setExplanationOpen(false)}>
+              {t("modal.close")}
+            </button>
+            <div className="panel compact">
+              <div className="panel-header">
+                <h2>{t("nl.explainTitle")}</h2>
+              </div>
+              <div className="panel-body">
+                <div className="explanation-text">
+                  {explanation ? explanation : t("nl.noExplanation")}
+                </div>
               </div>
             </div>
           </div>

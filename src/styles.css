@@ -350,6 +350,12 @@ textarea {
   min-height: 120px;
 }
 
+.button-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
 .memo-textarea {
   min-height: 80px;
 }
@@ -547,6 +553,13 @@ textarea {
   padding: 12px;
   border-radius: 12px;
   font-size: 13px;
+}
+
+.explanation-text {
+  font-size: 14px;
+  color: var(--ink);
+  white-space: pre-wrap;
+  line-height: 1.5;
 }
 
 .hint {
