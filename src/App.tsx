@@ -246,6 +246,7 @@ const App = () => {
   const [statusMessage, setStatusMessage] = useState("");
   const [isParsing, setIsParsing] = useState(false);
   const [isExplaining, setIsExplaining] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [now, setNow] = useState(() => new Date());
 
   const t = useMemo(() => createTranslator(language), [language]);
@@ -695,7 +696,7 @@ const App = () => {
         </div>
       </header>
 
-      <div className="layout">
+      <div className={`layout ${sidebarCollapsed ? "sidebar-collapsed" : ""}`}>
         <div className="column">
           <TaskForm
             draft={draft}
@@ -739,38 +740,52 @@ const App = () => {
             onViewModeChange={setCalendarView}
             onBlockSelect={handleCalendarBlockSelect}
             onBlockMove={handleCalendarBlockMove}
+            now={now}
           />
         </div>
-        <div className="column side">
-          <MemoPanel memo={memo} onChange={setMemo} t={t} />
-          <KnowledgeBasePanel
-            categories={knowledgeCategories}
-            items={knowledgeItems}
-            selectedCategoryId={selectedCategoryId}
-            onSelectCategory={setSelectedCategoryId}
-            onAddCategory={handleAddCategory}
-            draft={knowledgeDraft}
-            onDraftChange={setKnowledgeDraft}
-            onAddItem={handleAddKnowledgeItem}
-            onViewItem={handleViewKnowledgeItem}
-            onDeleteItem={handleDeleteKnowledgeItem}
-            t={t}
-          />
-          <KnowledgeAiPanel
-            mode={aiMode}
-            onModeChange={setAiMode}
-            question={aiQuestion}
-            onQuestionChange={setAiQuestion}
-            response={aiResponse}
-            suggestion={aiSuggestion}
-            onAsk={handleAskKnowledge}
-            onClassify={handleClassifyKnowledge}
-            onApplySuggestion={applyAiSuggestion}
-            isBusy={aiBusy}
-            draft={{ title: knowledgeDraft.title, content: knowledgeDraft.content }}
-            categories={knowledgeCategories}
-            t={t}
-          />
+        <div className={`column side sidebar ${sidebarCollapsed ? "collapsed" : ""}`}>
+          <div className="sidebar-header">
+            <span>{t("sidebar.title")}</span>
+            <button
+              className="button tiny ghost"
+              onClick={() => setSidebarCollapsed((prev) => !prev)}
+              aria-label={sidebarCollapsed ? t("sidebar.expand") : t("sidebar.collapse")}
+              title={sidebarCollapsed ? t("sidebar.expand") : t("sidebar.collapse")}
+            >
+              {sidebarCollapsed ? "»" : "«"}
+            </button>
+          </div>
+          <div className="sidebar-content">
+            <MemoPanel memo={memo} onChange={setMemo} t={t} />
+            <KnowledgeBasePanel
+              categories={knowledgeCategories}
+              items={knowledgeItems}
+              selectedCategoryId={selectedCategoryId}
+              onSelectCategory={setSelectedCategoryId}
+              onAddCategory={handleAddCategory}
+              draft={knowledgeDraft}
+              onDraftChange={setKnowledgeDraft}
+              onAddItem={handleAddKnowledgeItem}
+              onViewItem={handleViewKnowledgeItem}
+              onDeleteItem={handleDeleteKnowledgeItem}
+              t={t}
+            />
+            <KnowledgeAiPanel
+              mode={aiMode}
+              onModeChange={setAiMode}
+              question={aiQuestion}
+              onQuestionChange={setAiQuestion}
+              response={aiResponse}
+              suggestion={aiSuggestion}
+              onAsk={handleAskKnowledge}
+              onClassify={handleClassifyKnowledge}
+              onApplySuggestion={applyAiSuggestion}
+              isBusy={aiBusy}
+              draft={{ title: knowledgeDraft.title, content: knowledgeDraft.content }}
+              categories={knowledgeCategories}
+              t={t}
+            />
+          </div>
         </div>
       </div>
       {settingsOpen ? (

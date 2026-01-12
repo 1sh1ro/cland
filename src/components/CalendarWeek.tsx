@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import type { CalendarEvent, CalendarViewMode, PlannedBlock, Settings } from "../lib/types";
-import { addDays, dayKey, formatShortDate, formatTimeRange, startOfDay } from "../lib/time";
+import { addDays, dayKey, formatShortDate, formatTimeRange, isWithin, startOfDay } from "../lib/time";
 
 const segments = [
   { key: "morning", labelKey: "calendar.morning", start: 6 * 60, end: 12 * 60 },
@@ -18,6 +18,7 @@ type CalendarWeekProps = {
   onViewModeChange: (mode: CalendarViewMode) => void;
   onBlockSelect: (block: PlannedBlock) => void;
   onBlockMove: (blockId: string, start: string, end: string) => void;
+  now: Date;
 };
 
 type SegmentItem = {
@@ -49,7 +50,8 @@ const CalendarWeek = ({
   viewMode,
   onViewModeChange,
   onBlockSelect,
-  onBlockMove
+  onBlockMove,
+  now
 }: CalendarWeekProps) => {
   const [dragTarget, setDragTarget] = useState<string | null>(null);
   const [pointerDrag, setPointerDrag] = useState<{
@@ -193,82 +195,101 @@ const CalendarWeek = ({
                             {items.length === 0 ? (
                               <div className="empty">{t("calendar.empty")}</div>
                             ) : (
-                              items.map((item) => (
-                                <div
-                                  key={`${segment.key}-${item.kind}-${item.id}`}
-                                  className={`segment-item ${item.kind} ${item.locked ? "locked" : ""} ${
-                                    item.kind === "block" ? "clickable" : ""
-                                  } ${item.kind === "block" && pointerDrag?.blockId === item.block?.id ? "dragging" : ""}`}
-                                  title={formatTimeRange(item.start, item.end)}
-                                  onPointerDown={(event) => {
-                                    if (item.kind !== "block" || !item.block) {
-                                      return;
-                                    }
-                                    event.currentTarget.setPointerCapture(event.pointerId);
-                                    setPointerDrag({
-                                      blockId: item.block.id,
-                                      startX: event.clientX,
-                                      startY: event.clientY,
-                                      pointerId: event.pointerId
-                                    });
-                                    setIsPointerDragging(false);
-                                  }}
-                                  onPointerMove={(event) => {
-                                    if (item.kind !== "block" || !item.block || !pointerDrag) {
-                                      return;
-                                    }
-                                    if (pointerDrag.blockId !== item.block.id || pointerDrag.pointerId !== event.pointerId) {
-                                      return;
-                                    }
-                                    if (!isPointerDragging) {
-                                      const dx = event.clientX - pointerDrag.startX;
-                                      const dy = event.clientY - pointerDrag.startY;
-                                      if (Math.hypot(dx, dy) > 6) {
-                                        setIsPointerDragging(true);
-                                        setSuppressClickId(item.block.id);
-                                        updateDropTargetFromPointer(event.clientX, event.clientY);
+                              items.map((item) => {
+                                const inProgress =
+                                  item.kind === "block"
+                                    ? isWithin(now, new Date(item.start), new Date(item.end))
+                                    : false;
+                                return (
+                                  <div
+                                    key={`${segment.key}-${item.kind}-${item.id}`}
+                                    className={`segment-item ${item.kind} ${item.locked ? "locked" : ""} ${
+                                      item.kind === "block" ? "clickable" : ""
+                                    } ${
+                                      item.kind === "block" && pointerDrag?.blockId === item.block?.id ? "dragging" : ""
+                                    }`}
+                                    title={formatTimeRange(item.start, item.end)}
+                                    onPointerDown={(event) => {
+                                      if (item.kind !== "block" || !item.block) {
+                                        return;
                                       }
-                                      return;
-                                    }
-                                    updateDropTargetFromPointer(event.clientX, event.clientY);
-                                  }}
-                                  onPointerUp={(event) => {
-                                    if (pointerDrag && pointerDrag.pointerId === event.pointerId) {
-                                      if (isPointerDragging && dropTarget) {
-                                        const dayForDrop = dayByKey.get(dropTarget.key);
-                                        if (dayForDrop) {
-                                          handleDrop(pointerDrag.blockId, dayForDrop, dropTarget.segmentStart);
+                                      event.currentTarget.setPointerCapture(event.pointerId);
+                                      setPointerDrag({
+                                        blockId: item.block.id,
+                                        startX: event.clientX,
+                                        startY: event.clientY,
+                                        pointerId: event.pointerId
+                                      });
+                                      setIsPointerDragging(false);
+                                    }}
+                                    onPointerMove={(event) => {
+                                      if (item.kind !== "block" || !item.block || !pointerDrag) {
+                                        return;
+                                      }
+                                      if (
+                                        pointerDrag.blockId !== item.block.id ||
+                                        pointerDrag.pointerId !== event.pointerId
+                                      ) {
+                                        return;
+                                      }
+                                      if (!isPointerDragging) {
+                                        const dx = event.clientX - pointerDrag.startX;
+                                        const dy = event.clientY - pointerDrag.startY;
+                                        if (Math.hypot(dx, dy) > 6) {
+                                          setIsPointerDragging(true);
+                                          setSuppressClickId(item.block.id);
+                                          updateDropTargetFromPointer(event.clientX, event.clientY);
                                         }
+                                        return;
                                       }
-                                      resetPointerDrag();
-                                      event.currentTarget.releasePointerCapture(event.pointerId);
-                                    }
-                                  }}
-                                  onPointerCancel={(event) => {
-                                    if (pointerDrag && pointerDrag.pointerId === event.pointerId) {
-                                      resetPointerDrag();
-                                      event.currentTarget.releasePointerCapture(event.pointerId);
-                                    }
-                                  }}
-                                  onClick={() => {
-                                    if (item.kind === "block" && suppressClickId === item.block?.id) {
-                                      setSuppressClickId(null);
-                                      return;
-                                    }
-                                    if (item.kind === "block" && item.block) {
-                                      onBlockSelect(item.block);
-                                    }
-                                  }}
-                                >
-                                  <div>
-                                    <strong>{item.title}</strong>
-                                    <div className="meta">{formatTimeRange(item.start, item.end)}</div>
+                                      updateDropTargetFromPointer(event.clientX, event.clientY);
+                                    }}
+                                    onPointerUp={(event) => {
+                                      if (pointerDrag && pointerDrag.pointerId === event.pointerId) {
+                                        if (isPointerDragging && dropTarget) {
+                                          const dayForDrop = dayByKey.get(dropTarget.key);
+                                          if (dayForDrop) {
+                                            handleDrop(pointerDrag.blockId, dayForDrop, dropTarget.segmentStart);
+                                          }
+                                        }
+                                        resetPointerDrag();
+                                        event.currentTarget.releasePointerCapture(event.pointerId);
+                                      }
+                                    }}
+                                    onPointerCancel={(event) => {
+                                      if (pointerDrag && pointerDrag.pointerId === event.pointerId) {
+                                        resetPointerDrag();
+                                        event.currentTarget.releasePointerCapture(event.pointerId);
+                                      }
+                                    }}
+                                    onClick={() => {
+                                      if (item.kind === "block" && suppressClickId === item.block?.id) {
+                                        setSuppressClickId(null);
+                                        return;
+                                      }
+                                      if (item.kind === "block" && item.block) {
+                                        onBlockSelect(item.block);
+                                      }
+                                    }}
+                                  >
+                                    <div>
+                                      <strong>{item.title}</strong>
+                                      <div className="meta">{formatTimeRange(item.start, item.end)}</div>
+                                    </div>
+                                    <div className="item-meta">
+                                      {inProgress ? (
+                                        <span className="in-progress">
+                                          <span className="pulse-dot" />
+                                          {t("calendar.inProgress")}
+                                        </span>
+                                      ) : null}
+                                      {item.kind === "block" && item.confidence !== undefined ? (
+                                        <div className="badge">{Math.round(item.confidence * 100)}%</div>
+                                      ) : null}
+                                    </div>
                                   </div>
-                                  {item.kind === "block" && item.confidence !== undefined ? (
-                                    <div className="badge">{Math.round(item.confidence * 100)}%</div>
-                                  ) : null}
-                                </div>
-                              ))
+                                );
+                              })
                             )}
                           </div>
                         </div>
