@@ -36,22 +36,6 @@ body {
   flex-direction: column;
 }
 
-.app-shell {
-  height: 100%;
-  width: 100%;
-  display: flex;
-  justify-content: flex-start;
-  align-items: flex-start;
-  overflow: hidden;
-}
-
-.app.app-scaled {
-  width: var(--app-base-width);
-  height: var(--app-base-height);
-  transform: scale(var(--ui-scale));
-  transform-origin: top left;
-}
-
 .app-header {
   display: flex;
   justify-content: space-between;
@@ -269,8 +253,8 @@ body {
 }
 
 .layout {
-  --left-col: 400px;
-  --sidebar-col: 400px;
+  --left-col: clamp(280px, 24vw, 400px);
+  --sidebar-col: clamp(260px, 22vw, 400px);
   display: grid;
   grid-template-columns: var(--left-col) minmax(560px, 1fr) var(--sidebar-col);
   gap: 18px;

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { appWindow, LogicalSize } from "@tauri-apps/api/window";
 import TaskForm, { TaskDraft } from "./components/TaskForm";
 import TaskList from "./components/TaskList";
@@ -99,7 +99,7 @@ const defaultUiSettings: UiSettings = {
   tipsEnabled: true
 };
 
-const MIN_WINDOW_SIZE = { width: 1440, height: 820 };
+const MIN_WINDOW_SIZE = { width: 1200, height: 720 };
 
 const coerceApiSettings = (value: unknown): ApiSettings => {
   if (!value || typeof value !== "object") {
@@ -277,9 +277,6 @@ const App = () => {
   const [focusTip, setFocusTip] = useState("");
   const [tipBusy, setTipBusy] = useState(false);
   const [now, setNow] = useState(() => new Date());
-  const [uiScale, setUiScale] = useState(1);
-  const [baseSize, setBaseSize] = useState({ width: MIN_WINDOW_SIZE.width, height: MIN_WINDOW_SIZE.height });
-  const baseSizeRef = useRef({ width: 0, height: 0, ready: false });
 
   const t = useMemo(() => createTranslator(language), [language]);
   const timeFormatter = useMemo(
@@ -305,45 +302,10 @@ const App = () => {
   }, []);
 
   useEffect(() => {
-    if (uiSettings.stickyMode) {
+    if (!isTauri || uiSettings.stickyMode) {
       return;
     }
-    const roundScale = (value: number) => Math.round(value * 100) / 100;
-    const getScreenBase = () => {
-      if (typeof window === "undefined") {
-        return { width: MIN_WINDOW_SIZE.width, height: MIN_WINDOW_SIZE.height };
-      }
-      const screenWidth = window.screen?.availWidth || window.innerWidth;
-      const screenHeight = window.screen?.availHeight || window.innerHeight;
-      return { width: screenWidth, height: screenHeight };
-    };
-    const updateBaseSize = (base: { width: number; height: number }) => {
-      if (
-        !baseSizeRef.current.ready ||
-        baseSizeRef.current.width !== base.width ||
-        baseSizeRef.current.height !== base.height
-      ) {
-        baseSizeRef.current = { ...base, ready: true };
-        setBaseSize(base);
-      }
-    };
-    const updateFromWindow = () => {
-      const size = { width: window.innerWidth, height: window.innerHeight };
-      const base = getScreenBase();
-      updateBaseSize(base);
-      const scale = Math.min(size.width / base.width, size.height / base.height);
-      setUiScale(roundScale(Number.isFinite(scale) && scale > 0 ? scale : 1));
-    };
-    updateFromWindow();
-    window.addEventListener("resize", updateFromWindow);
-    if (isTauri) {
-      const base = getScreenBase();
-      updateBaseSize(base);
-      const minWidth = Math.min(MIN_WINDOW_SIZE.width, base.width);
-      const minHeight = Math.min(MIN_WINDOW_SIZE.height, base.height);
-      appWindow.setMinSize(new LogicalSize(minWidth, minHeight));
-    }
-    return () => window.removeEventListener("resize", updateFromWindow);
+    appWindow.setMinSize(new LogicalSize(MIN_WINDOW_SIZE.width, MIN_WINDOW_SIZE.height));
   }, [isTauri, uiSettings.stickyMode]);
 
   useEffect(() => {
@@ -865,15 +827,8 @@ const App = () => {
     );
   }
 
-  const scaleStyle = {
-    "--ui-scale": uiScale,
-    "--app-base-width": `${baseSize.width}px`,
-    "--app-base-height": `${baseSize.height}px`
-  } as CSSProperties;
-
   return (
-    <div className="app-shell" style={scaleStyle}>
-      <div className="app app-scaled">
+    <div className="app">
       <div className="titlebar" data-tauri-drag-region>
         <div className="titlebar-left" data-tauri-drag-region>
           <AppLogo />
@@ -1165,7 +1120,6 @@ const App = () => {
           </div>
         </div>
       ) : null}
-      </div>
     </div>
   );
 };
