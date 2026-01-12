@@ -186,8 +186,10 @@ body {
 }
 
 .layout {
+  --left-col: 320px;
+  --sidebar-col: 320px;
   display: grid;
-  grid-template-columns: minmax(300px, 1fr) minmax(560px, 2fr) minmax(300px, 1fr);
+  grid-template-columns: var(--left-col) minmax(560px, 1fr) var(--sidebar-col);
   gap: 18px;
   align-items: stretch;
   flex: 1;
@@ -196,7 +198,7 @@ body {
 }
 
 .layout.sidebar-collapsed {
-  grid-template-columns: minmax(300px, 1fr) minmax(560px, 2fr) 72px;
+  grid-template-columns: var(--left-col) minmax(560px, 1fr) 72px;
 }
 
 .column {
