@@ -820,7 +820,7 @@ const App = () => {
 
   return (
     <div className="app">
-      <div className="titlebar">
+      <div className="titlebar" data-tauri-drag-region>
         <div className="titlebar-left" data-tauri-drag-region>
           <AppLogo />
           <span className="product-name">{t("header.eyebrow")}</span>
@@ -850,10 +850,12 @@ const App = () => {
         </div>
       </div>
       <header className="app-header">
-        <div>
+        <div data-tauri-drag-region>
           <h1>{currentTime}</h1>
         </div>
-        <div className="status">{statusMessage}</div>
+        <div className="status" data-tauri-drag-region>
+          {statusMessage}
+        </div>
         <div className="header-actions">
           <button className="button primary" onClick={handleGeneratePlan}>
             {t("header.generatePlan")}
