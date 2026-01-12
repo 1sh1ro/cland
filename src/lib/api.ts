@@ -99,8 +99,11 @@ export const parseTasksFromText = async (
   settings: ApiSettings,
   context: { timezone: string; workDayStart: string; workDayEnd: string }
 ): Promise<{ tasks: Task[]; assumptions: string[] }> => {
-  const promptTemplate = settings.taskSystemPrompt?.trim() || DEFAULT_TASK_SYSTEM_PROMPT;
-  const systemPrompt = applyPromptContext(promptTemplate, context);
+  const basePrompt = applyPromptContext(DEFAULT_TASK_SYSTEM_PROMPT, context);
+  const customNotes = settings.taskPromptNotes?.trim();
+  const systemPrompt = customNotes
+    ? `${basePrompt}\n\nUser preferences (apply when relevant):\n${customNotes}`
+    : basePrompt;
 
   const userPrompt = `Task input:\n${input}`;
 

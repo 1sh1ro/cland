@@ -87,7 +87,7 @@ const defaultApiSettings: ApiSettings = {
   baseUrl: import.meta.env.VITE_API_BASE_URL || "https://api.longcat.chat/openai",
   apiKey: import.meta.env.VITE_API_KEY || "",
   model: import.meta.env.VITE_API_MODEL || "LongCat-Flash-Chat",
-  taskSystemPrompt: DEFAULT_TASK_SYSTEM_PROMPT
+  taskPromptNotes: ""
 };
 
 const coerceApiSettings = (value: unknown): ApiSettings => {
@@ -95,14 +95,16 @@ const coerceApiSettings = (value: unknown): ApiSettings => {
     return defaultApiSettings;
   }
   const candidate = value as Partial<ApiSettings>;
+  const legacyPrompt = candidate.taskSystemPrompt?.trim();
+  const legacyNotes = legacyPrompt && legacyPrompt !== DEFAULT_TASK_SYSTEM_PROMPT ? legacyPrompt : "";
   return {
     ...defaultApiSettings,
     ...candidate,
     provider: coerceProvider(typeof candidate.provider === "string" ? candidate.provider : undefined),
-    taskSystemPrompt:
-      typeof candidate.taskSystemPrompt === "string" && candidate.taskSystemPrompt.trim()
-        ? candidate.taskSystemPrompt
-        : defaultApiSettings.taskSystemPrompt
+    taskPromptNotes:
+      typeof candidate.taskPromptNotes === "string" && candidate.taskPromptNotes.trim()
+        ? candidate.taskPromptNotes
+        : legacyNotes
   };
 };
 

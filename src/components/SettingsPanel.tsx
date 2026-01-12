@@ -143,8 +143,9 @@ const SettingsPanel = ({
             <span>{t("settings.systemPrompt")}</span>
             <textarea
               className="settings-textarea"
-              value={apiSettings.taskSystemPrompt}
-              onChange={(event) => onApiSettingsChange({ ...apiSettings, taskSystemPrompt: event.target.value })}
+              value={apiSettings.taskPromptNotes}
+              onChange={(event) => onApiSettingsChange({ ...apiSettings, taskPromptNotes: event.target.value })}
+              placeholder={t("settings.systemPromptPlaceholder")}
             />
             <div className="hint">{t("settings.systemPromptHint")}</div>
           </label>

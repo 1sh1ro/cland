@@ -70,7 +70,8 @@ export type ApiSettings = {
   baseUrl: string;
   apiKey: string;
   model: string;
-  taskSystemPrompt: string;
+  taskPromptNotes: string;
+  taskSystemPrompt?: string;
 };
 
 export type CalendarViewMode = "week" | "focus";
