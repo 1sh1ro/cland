@@ -67,7 +67,7 @@ const KnowledgeAiPanel = ({
               <span>{t("ai.question")}</span>
               <textarea value={question} onChange={(event) => onQuestionChange(event.target.value)} />
             </label>
-            <button className="button" onClick={onAsk} disabled={isBusy}>
+            <button className="button primary" onClick={onAsk} disabled={isBusy}>
               {isBusy ? t("ai.thinking") : t("ai.ask")}
             </button>
             {response ? <div className="ai-response">{response}</div> : null}
@@ -83,7 +83,7 @@ const KnowledgeAiPanel = ({
                 {draft.content ? draft.content.slice(0, 120) : t("ai.noContent")}
               </div>
             </div>
-            <button className="button" onClick={onClassify} disabled={isBusy}>
+            <button className="button primary" onClick={onClassify} disabled={isBusy}>
               {isBusy ? t("ai.thinking") : t("ai.classify")}
             </button>
             {suggestion ? (
@@ -92,7 +92,7 @@ const KnowledgeAiPanel = ({
                   <strong>{t("ai.suggested")}</strong> {suggestion.category}
                 </div>
                 {suggestion.reason ? <div className="ai-reason">{suggestion.reason}</div> : null}
-                <button className="button tiny" onClick={onApplySuggestion}>
+                <button className="button tiny primary" onClick={onApplySuggestion}>
                   {t("ai.apply")}
                 </button>
               </div>

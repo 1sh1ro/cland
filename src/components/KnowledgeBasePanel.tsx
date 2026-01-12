@@ -1,4 +1,4 @@
-﻿import { useState } from "react";
+import { useRef, useState } from "react";
 import type { KnowledgeCategory, KnowledgeItem } from "../lib/types";
 
 type KnowledgeDraft = {
@@ -28,6 +28,16 @@ const snippet = (value: string, length = 120) => {
   return `${value.slice(0, length)}...`;
 };
 
+const TrashIcon = () => (
+  <svg className="icon" viewBox="0 0 24 24" aria-hidden="true">
+    <path
+      fill="currentColor"
+      d="M9 3h6l1 2h4v2H4V5h4l1-2zm1 6h2v9h-2V9zm4 0h2v9h-2V9zM7 9h2v9H7V9z"
+    />
+  </svg>
+);
+
+
 const KnowledgeBasePanel = ({
   categories,
   items,
@@ -42,6 +52,7 @@ const KnowledgeBasePanel = ({
   t
 }: KnowledgeBasePanelProps) => {
   const [newCategoryName, setNewCategoryName] = useState("");
+  const entryTitleRef = useRef<HTMLInputElement | null>(null);
   const categoryMap = categories.reduce<Record<string, string>>((acc, category) => {
     acc[category.id] = category.name;
     return acc;
@@ -59,6 +70,12 @@ const KnowledgeBasePanel = ({
     onAddCategory(newCategoryName.trim());
     setNewCategoryName("");
   };
+
+  const focusEntry = () => {
+    entryTitleRef.current?.focus();
+    entryTitleRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+  };
+
 
   return (
     <div className="panel">
@@ -102,6 +119,7 @@ const KnowledgeBasePanel = ({
           <label className="field">
             <span>{t("knowledge.entryTitle")}</span>
             <input
+              ref={entryTitleRef}
               type="text"
               value={draft.title}
               onChange={(event) => onDraftChange({ ...draft, title: event.target.value })}
@@ -127,14 +145,19 @@ const KnowledgeBasePanel = ({
               ))}
             </select>
           </label>
-          <button className="button" onClick={onAddItem}>
+          <button className="button primary" onClick={onAddItem}>
             {t("knowledge.addEntry")}
           </button>
         </div>
         <div className="section">
           <h3>{t("knowledge.list")}</h3>
           {filteredItems.length === 0 ? (
-            <div className="empty">{t("knowledge.empty")}</div>
+            <div className="empty-state">
+              <div className="empty">{t("knowledge.empty")}</div>
+              <button className="button primary" onClick={focusEntry}>
+                {t("knowledge.emptyAction")}
+              </button>
+            </div>
           ) : (
             <div className="knowledge-list">
               {filteredItems.map((item) => (
@@ -151,8 +174,13 @@ const KnowledgeBasePanel = ({
                     <button className="button tiny" onClick={() => onViewItem(item)}>
                       {t("knowledge.view")}
                     </button>
-                    <button className="button tiny danger" onClick={() => onDeleteItem(item.id)}>
-                      {t("knowledge.delete")}
+                    <button
+                      className="button tiny danger icon-button"
+                      onClick={() => onDeleteItem(item.id)}
+                      aria-label={t("knowledge.delete")}
+                      title={t("knowledge.delete")}>
+                      <TrashIcon />
+                      <span className="icon-label">{t("knowledge.delete")}</span>
                     </button>
                   </div>
                 </div>

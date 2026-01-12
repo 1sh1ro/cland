@@ -320,7 +320,7 @@ const CalendarWeek = ({
                                         }
                                       }}
                                     >
-                                      <div>
+                                      <div className="item-main">
                                         <strong>{item.title}</strong>
                                         <div className="meta">{formatTimeRange(item.start, item.end)}</div>
                                       </div>

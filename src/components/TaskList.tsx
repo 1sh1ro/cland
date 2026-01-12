@@ -3,6 +3,15 @@ import type { Task } from "../lib/types";
 
 const formatMinutes = (minutes: number) => `${minutes} min`;
 
+const TrashIcon = () => (
+  <svg className="icon" viewBox="0 0 24 24" aria-hidden="true">
+    <path
+      fill="currentColor"
+      d="M9 3h6l1 2h4v2H4V5h4l1-2zm1 6h2v9h-2V9zm4 0h2v9h-2V9zM7 9h2v9H7V9z"
+    />
+  </svg>
+);
+
 type TaskListProps = {
   tasks: Task[];
   onSelect: (task: Task) => void;
@@ -38,21 +47,28 @@ const TaskList = ({ tasks, onSelect, onDelete, t }: TaskListProps) => {
               const completed = task.completedMinutes ?? 0;
               const percent = task.estimatedMinutes > 0 ? Math.round((completed / task.estimatedMinutes) * 100) : 0;
               return (
-              <div className="list-item" key={task.id}>
-                <button className="link" onClick={() => onSelect(task)}>
-                  <strong>{task.title}</strong>
-                  <span>
-                    {formatMinutes(task.estimatedMinutes)} | P{task.priority} | {percent}%
-                  </span>
-                  <div className="progress-bar">
-                    <span style={{ width: `${percent}%` }} />
-                  </div>
-                </button>
-                <button className="button tiny danger" onClick={() => onDelete(task.id)}>
-                  {t("tasks.remove")}
-                </button>
-              </div>
-            )})}
+                <div className="list-item" key={task.id}>
+                  <button className="link" onClick={() => onSelect(task)}>
+                    <strong>{task.title}</strong>
+                    <span>
+                      {formatMinutes(task.estimatedMinutes)} | P{task.priority} | {percent}%
+                    </span>
+                    <div className="progress-bar">
+                      <span style={{ width: `${percent}%` }} />
+                    </div>
+                  </button>
+                  <button
+                    className="button tiny danger icon-button"
+                    onClick={() => onDelete(task.id)}
+                    aria-label={t("tasks.remove")}
+                    title={t("tasks.remove")}
+                  >
+                    <TrashIcon />
+                    <span className="icon-label">{t("tasks.remove")}</span>
+                  </button>
+                </div>
+              );
+            })}
           </div>
         )}
         {tasks.length > 0 ? (
