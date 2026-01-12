@@ -394,6 +394,10 @@ body {
   gap: 10px;
 }
 
+.task-form .panel-footer {
+  padding-bottom: 22px;
+}
+
 .section {
   display: flex;
   flex-direction: column;
