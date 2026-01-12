@@ -131,10 +131,10 @@ const TaskForm = ({ draft, onChange, onSubmit, onReset, selectedTask, t, highlig
         </label>
       </div>
       <div className="panel-footer">
-        <button className="button primary" onClick={onSubmit} disabled={!draft.title.trim()}>
+        <button className="button tiny primary" onClick={onSubmit} disabled={!draft.title.trim()}>
           {selectedTask ? t("taskForm.update") : t("taskForm.add")}
         </button>
-        <button className="button ghost" onClick={onReset}>
+        <button className="button tiny ghost" onClick={onReset}>
           {selectedTask ? t("taskForm.cancel") : t("taskForm.clear")}
         </button>
       </div>
