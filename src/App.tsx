@@ -99,6 +99,8 @@ const defaultUiSettings: UiSettings = {
   tipsEnabled: true
 };
 
+const MIN_WINDOW_SIZE = { width: 1440, height: 820 };
+
 const coerceApiSettings = (value: unknown): ApiSettings => {
   if (!value || typeof value !== "object") {
     return defaultApiSettings;
@@ -276,8 +278,8 @@ const App = () => {
   const [tipBusy, setTipBusy] = useState(false);
   const [now, setNow] = useState(() => new Date());
   const [uiScale, setUiScale] = useState(1);
-  const [baseSize, setBaseSize] = useState({ width: 1280, height: 760 });
-  const baseSizeRef = useRef({ width: 1280, height: 760, ready: false });
+  const [baseSize, setBaseSize] = useState({ width: MIN_WINDOW_SIZE.width, height: MIN_WINDOW_SIZE.height });
+  const baseSizeRef = useRef({ width: 0, height: 0, ready: false });
 
   const t = useMemo(() => createTranslator(language), [language]);
   const timeFormatter = useMemo(
@@ -307,42 +309,40 @@ const App = () => {
       return;
     }
     const roundScale = (value: number) => Math.round(value * 100) / 100;
-    if (isTauri) {
-      const updateScale = async () => {
-        const size = await appWindow.innerSize();
-        if (!baseSizeRef.current.ready) {
-          baseSizeRef.current = { width: size.width, height: size.height, ready: true };
-          setBaseSize({ width: size.width, height: size.height });
-        }
-        const base = baseSizeRef.current;
-        const scale = Math.max(1, Math.min(size.width / base.width, size.height / base.height));
-        setUiScale(roundScale(scale));
-      };
-      const setup = async () => {
-        await updateScale();
-        const base = baseSizeRef.current;
-        await appWindow.setMinSize(new LogicalSize(base.width, base.height));
-      };
-      setup();
-      const unlistenPromise = appWindow.onResized(() => {
-        updateScale();
-      });
-      return () => {
-        unlistenPromise.then((unlisten) => unlisten());
-      };
-    }
+    const getScreenBase = () => {
+      if (typeof window === "undefined") {
+        return { width: MIN_WINDOW_SIZE.width, height: MIN_WINDOW_SIZE.height };
+      }
+      const screenWidth = window.screen?.availWidth || window.innerWidth;
+      const screenHeight = window.screen?.availHeight || window.innerHeight;
+      return { width: screenWidth, height: screenHeight };
+    };
+    const updateBaseSize = (base: { width: number; height: number }) => {
+      if (
+        !baseSizeRef.current.ready ||
+        baseSizeRef.current.width !== base.width ||
+        baseSizeRef.current.height !== base.height
+      ) {
+        baseSizeRef.current = { ...base, ready: true };
+        setBaseSize(base);
+      }
+    };
     const updateFromWindow = () => {
       const size = { width: window.innerWidth, height: window.innerHeight };
-      if (!baseSizeRef.current.ready) {
-        baseSizeRef.current = { width: size.width, height: size.height, ready: true };
-        setBaseSize(size);
-      }
-      const base = baseSizeRef.current;
-      const scale = Math.max(1, Math.min(size.width / base.width, size.height / base.height));
-      setUiScale(roundScale(scale));
+      const base = getScreenBase();
+      updateBaseSize(base);
+      const scale = Math.min(size.width / base.width, size.height / base.height);
+      setUiScale(roundScale(Number.isFinite(scale) && scale > 0 ? scale : 1));
     };
     updateFromWindow();
     window.addEventListener("resize", updateFromWindow);
+    if (isTauri) {
+      const base = getScreenBase();
+      updateBaseSize(base);
+      const minWidth = Math.min(MIN_WINDOW_SIZE.width, base.width);
+      const minHeight = Math.min(MIN_WINDOW_SIZE.height, base.height);
+      appWindow.setMinSize(new LogicalSize(minWidth, minHeight));
+    }
     return () => window.removeEventListener("resize", updateFromWindow);
   }, [isTauri, uiSettings.stickyMode]);
 

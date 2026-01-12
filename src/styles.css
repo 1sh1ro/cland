@@ -40,7 +40,7 @@ body {
   height: 100%;
   width: 100%;
   display: flex;
-  justify-content: center;
+  justify-content: flex-start;
   align-items: flex-start;
   overflow: hidden;
 }
@@ -49,7 +49,7 @@ body {
   width: var(--app-base-width);
   height: var(--app-base-height);
   transform: scale(var(--ui-scale));
-  transform-origin: top center;
+  transform-origin: top left;
 }
 
 .app-header {
