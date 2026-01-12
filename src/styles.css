@@ -159,6 +159,68 @@ body {
   line-height: 1;
 }
 
+.sticky-titlebar {
+  grid-template-columns: 1fr auto;
+  padding: 6px 10px;
+  margin-bottom: 12px;
+}
+
+.app.sticky-mode {
+  padding: 14px;
+  gap: 12px;
+}
+
+.sticky-card {
+  background: #fff8ef;
+  border-radius: 18px;
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 160px;
+}
+
+.sticky-time {
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.sticky-task {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.sticky-notes {
+  font-size: 12px;
+  color: var(--muted);
+  max-height: 46px;
+  overflow: hidden;
+}
+
+.sticky-tip {
+  font-size: 12px;
+  color: var(--muted);
+  border-top: 1px dashed var(--line);
+  padding-top: 8px;
+}
+
+.sticky-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.sticky-toggle {
+  font-size: 12px;
+  color: var(--muted);
+}
+
 .modal-backdrop {
   position: fixed;
   inset: 0;
@@ -195,6 +257,7 @@ body {
   flex: 1;
   min-height: 0;
   overflow: hidden;
+  transition: grid-template-columns 0.25s ease;
 }
 
 .layout.sidebar-collapsed {

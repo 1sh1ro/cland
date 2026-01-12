@@ -1,4 +1,4 @@
-﻿import type { ApiSettings, Settings } from "../lib/types";
+import type { ApiSettings, Settings, UiSettings } from "../lib/types";
 import type { Language } from "../lib/i18n";
 
 type SettingsPanelProps = {
@@ -6,6 +6,8 @@ type SettingsPanelProps = {
   onSettingsChange: (settings: Settings) => void;
   apiSettings: ApiSettings;
   onApiSettingsChange: (settings: ApiSettings) => void;
+  uiSettings: UiSettings;
+  onUiSettingsChange: (settings: UiSettings) => void;
   language: Language;
   onLanguageChange: (language: Language) => void;
   t: (key: string) => string;
@@ -16,6 +18,8 @@ const SettingsPanel = ({
   onSettingsChange,
   apiSettings,
   onApiSettingsChange,
+  uiSettings,
+  onUiSettingsChange,
   language,
   onLanguageChange,
   t
@@ -100,6 +104,35 @@ const SettingsPanel = ({
               <option value="en">English</option>
             </select>
           </label>
+        </div>
+        <div className="section">
+          <h3>{t("settings.displayTitle")}</h3>
+          <label className="field inline">
+            <input
+              type="checkbox"
+              checked={uiSettings.stickyMode}
+              onChange={(event) => onUiSettingsChange({ ...uiSettings, stickyMode: event.target.checked })}
+            />
+            <span>{t("settings.stickyMode")}</span>
+          </label>
+          <label className="field inline">
+            <input
+              type="checkbox"
+              checked={uiSettings.alwaysOnTop}
+              onChange={(event) => onUiSettingsChange({ ...uiSettings, alwaysOnTop: event.target.checked })}
+              disabled={!uiSettings.stickyMode}
+            />
+            <span>{t("settings.alwaysOnTop")}</span>
+          </label>
+          <label className="field inline">
+            <input
+              type="checkbox"
+              checked={uiSettings.tipsEnabled}
+              onChange={(event) => onUiSettingsChange({ ...uiSettings, tipsEnabled: event.target.checked })}
+            />
+            <span>{t("settings.tips")}</span>
+          </label>
+          <div className="hint">{t("settings.stickyHint")}</div>
         </div>
         <div className="section">
           <h3>{t("settings.aiTitle")}</h3>

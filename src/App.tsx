@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
-import { appWindow } from "@tauri-apps/api/window";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { appWindow, LogicalSize } from "@tauri-apps/api/window";
 import TaskForm, { TaskDraft } from "./components/TaskForm";
 import TaskList from "./components/TaskList";
 import CalendarWeek from "./components/CalendarWeek";
@@ -12,11 +12,12 @@ import {
   parseTasksFromText,
   suggestCategoryForEntry,
   answerKnowledgeQuestion,
-  explainPlan
+  explainPlan,
+  generateFocusTip
 } from "./lib/api";
 import { createTranslator, type Language } from "./lib/i18n";
 import { loadFromStorage, saveToStorage } from "./lib/storage";
-import { fromLocalInputValue, toLocalInputValue } from "./lib/time";
+import { formatTimeRange, fromLocalInputValue, toLocalInputValue } from "./lib/time";
 import { generatePlan } from "./lib/scheduler";
 import type {
   ApiSettings,
@@ -27,7 +28,8 @@ import type {
   PlanResult,
   PlannedBlock,
   Settings,
-  Task
+  Task,
+  UiSettings
 } from "./lib/types";
 
 const STORAGE_KEYS = {
@@ -36,6 +38,7 @@ const STORAGE_KEYS = {
   settings: "cland.settings",
   plan: "cland.plan",
   apiSettings: "cland.api",
+  uiSettings: "cland.ui",
   assumptions: "cland.assumptions",
   language: "cland.language",
   calendarView: "cland.calendarView",
@@ -90,6 +93,12 @@ const defaultApiSettings: ApiSettings = {
   taskPromptNotes: ""
 };
 
+const defaultUiSettings: UiSettings = {
+  stickyMode: false,
+  alwaysOnTop: false,
+  tipsEnabled: true
+};
+
 const coerceApiSettings = (value: unknown): ApiSettings => {
   if (!value || typeof value !== "object") {
     return defaultApiSettings;
@@ -105,6 +114,18 @@ const coerceApiSettings = (value: unknown): ApiSettings => {
       typeof candidate.taskPromptNotes === "string" && candidate.taskPromptNotes.trim()
         ? candidate.taskPromptNotes
         : legacyNotes
+  };
+};
+
+const coerceUiSettings = (value: unknown): UiSettings => {
+  if (!value || typeof value !== "object") {
+    return defaultUiSettings;
+  }
+  const candidate = value as Partial<UiSettings>;
+  return {
+    stickyMode: Boolean(candidate.stickyMode),
+    alwaysOnTop: Boolean(candidate.alwaysOnTop),
+    tipsEnabled: candidate.tipsEnabled !== undefined ? Boolean(candidate.tipsEnabled) : defaultUiSettings.tipsEnabled
   };
 };
 
@@ -203,6 +224,9 @@ const App = () => {
   const [apiSettings, setApiSettings] = useState<ApiSettings>(() =>
     coerceApiSettings(loadFromStorage(STORAGE_KEYS.apiSettings, defaultApiSettings))
   );
+  const [uiSettings, setUiSettings] = useState<UiSettings>(() =>
+    coerceUiSettings(loadFromStorage(STORAGE_KEYS.uiSettings, defaultUiSettings))
+  );
   const [plan, setPlan] = useState<PlanResult | null>(() => loadFromStorage(STORAGE_KEYS.plan, null));
   const [aiAssumptions, setAiAssumptions] = useState<string[]>(() => loadFromStorage(STORAGE_KEYS.assumptions, []));
   const [language, setLanguage] = useState<Language>(() =>
@@ -248,6 +272,8 @@ const App = () => {
   const [isExplaining, setIsExplaining] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [taskFormPulseKey, setTaskFormPulseKey] = useState(0);
+  const [focusTip, setFocusTip] = useState("");
+  const [tipBusy, setTipBusy] = useState(false);
   const [now, setNow] = useState(() => new Date());
 
   const t = useMemo(() => createTranslator(language), [language]);
@@ -266,6 +292,7 @@ const App = () => {
   const contactUrl = "https://github.com/1sh1ro";
   const isTauri =
     typeof window !== "undefined" && Boolean((window as Window & { __TAURI__?: unknown }).__TAURI__);
+  const previousWindowState = useRef<null | { size: { width: number; height: number }; resizable: boolean }>(null);
 
   useEffect(() => {
     const timer = setInterval(() => setNow(new Date()), 30000);
@@ -287,6 +314,10 @@ const App = () => {
   useEffect(() => {
     saveToStorage(STORAGE_KEYS.apiSettings, apiSettings);
   }, [apiSettings]);
+
+  useEffect(() => {
+    saveToStorage(STORAGE_KEYS.uiSettings, uiSettings);
+  }, [uiSettings]);
 
   useEffect(() => {
     saveToStorage(STORAGE_KEYS.plan, plan);
@@ -322,6 +353,33 @@ const App = () => {
       return acc;
     }, {});
   }, [tasks]);
+
+  const currentBlock = useMemo(() => {
+    if (!plan) {
+      return null;
+    }
+    return (
+      plan.blocks.find((block) => {
+        const start = new Date(block.start);
+        const end = new Date(block.end);
+        return now.getTime() >= start.getTime() && now.getTime() <= end.getTime();
+      }) ?? null
+    );
+  }, [now, plan]);
+
+  const currentTask = useMemo(() => {
+    if (!currentBlock) {
+      return null;
+    }
+    return tasks.find((task) => task.id === currentBlock.taskId) ?? null;
+  }, [currentBlock, tasks]);
+
+  const currentTaskRange = useMemo(() => {
+    if (!currentBlock) {
+      return "";
+    }
+    return formatTimeRange(currentBlock.start, currentBlock.end);
+  }, [currentBlock]);
 
   useEffect(() => {
     if (knowledgeCategories.length === 0) {
@@ -568,6 +626,30 @@ const App = () => {
     return uniqueList([...baseAssumptions, ...aiAssumptions, ...taskAssumptions]);
   };
 
+  const handleGenerateTip = async () => {
+    if (!currentTask) {
+      setFocusTip(t("sticky.noTaskTitle"));
+      return;
+    }
+    if (!apiSettings.apiKey) {
+      setFocusTip(t("sticky.tipNeedKey"));
+      return;
+    }
+    setTipBusy(true);
+    try {
+      const tip = await generateFocusTip(
+        { title: currentTask.title, description: currentTask.description },
+        apiSettings,
+        language
+      );
+      setFocusTip(tip);
+    } catch (error) {
+      setFocusTip(error instanceof Error ? error.message : t("sticky.tipFailed"));
+    } finally {
+      setTipBusy(false);
+    }
+  };
+
   const handleGeneratePlan = () => {
     if (tasks.length === 0) {
       setStatusMessage(t("status.addTaskPrompt"));
@@ -634,6 +716,46 @@ const App = () => {
     }
   };
 
+  useEffect(() => {
+    if (!uiSettings.stickyMode || !uiSettings.tipsEnabled) {
+      return;
+    }
+    if (!currentTask) {
+      setFocusTip(t("sticky.noTaskTitle"));
+      return;
+    }
+    handleGenerateTip();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [uiSettings.stickyMode, uiSettings.tipsEnabled, currentTask?.id]);
+
+  useEffect(() => {
+    if (!isTauri) {
+      return;
+    }
+    const applyWindowState = async () => {
+      if (uiSettings.stickyMode) {
+        setSettingsOpen(false);
+        setTaskDetail(null);
+        setKnowledgeModal(null);
+        setExplanationOpen(false);
+        const size = await appWindow.outerSize();
+        const resizable = await appWindow.isResizable();
+        if (!previousWindowState.current) {
+          previousWindowState.current = { size, resizable };
+        }
+        await appWindow.setResizable(false);
+        await appWindow.setSize(new LogicalSize(360, 220));
+        await appWindow.setAlwaysOnTop(uiSettings.alwaysOnTop);
+      } else if (previousWindowState.current) {
+        await appWindow.setAlwaysOnTop(false);
+        await appWindow.setResizable(previousWindowState.current.resizable);
+        await appWindow.setSize(previousWindowState.current.size);
+        previousWindowState.current = null;
+      }
+    };
+    applyWindowState();
+  }, [isTauri, uiSettings.alwaysOnTop, uiSettings.stickyMode]);
+
   const handleMinimize = async () => {
     if (!isTauri) {
       return;
@@ -654,6 +776,47 @@ const App = () => {
     }
     await appWindow.close();
   };
+
+  if (uiSettings.stickyMode) {
+    return (
+      <div className="app sticky-mode">
+        <div className="titlebar sticky-titlebar" data-tauri-drag-region>
+          <div className="titlebar-left" data-tauri-drag-region>
+            <AppLogo />
+            <span className="product-name">{t("header.eyebrow")}</span>
+          </div>
+          <div className="titlebar-actions">
+            <button className="button tiny ghost" onClick={() => setUiSettings((prev) => ({ ...prev, stickyMode: false }))}>
+              {t("sticky.exit")}
+            </button>
+          </div>
+        </div>
+        <div className="sticky-card">
+          <div className="sticky-time">{currentTaskRange || t("sticky.noTime")}</div>
+          <div className="sticky-task">{currentTask ? currentTask.title : t("sticky.noTaskTitle")}</div>
+          {currentTask?.description ? <div className="sticky-notes">{currentTask.description}</div> : null}
+          <div className="sticky-tip">
+            {uiSettings.tipsEnabled ? focusTip || t("sticky.tipPlaceholder") : t("sticky.tipDisabled")}
+          </div>
+          <div className="sticky-actions">
+            <button className="button tiny" onClick={handleGenerateTip} disabled={tipBusy || !uiSettings.tipsEnabled}>
+              {tipBusy ? t("sticky.tipLoading") : t("sticky.tip")}
+            </button>
+            <label className="field inline sticky-toggle">
+              <input
+                type="checkbox"
+                checked={uiSettings.alwaysOnTop}
+                onChange={(event) =>
+                  setUiSettings((prev) => ({ ...prev, alwaysOnTop: event.target.checked }))
+                }
+              />
+              <span>{t("sticky.alwaysOnTop")}</span>
+            </label>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="app">
@@ -805,6 +968,8 @@ const App = () => {
               onSettingsChange={setSettings}
               apiSettings={apiSettings}
               onApiSettingsChange={setApiSettings}
+              uiSettings={uiSettings}
+              onUiSettingsChange={setUiSettings}
               language={language}
               onLanguageChange={setLanguage}
               t={t}

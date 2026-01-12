@@ -176,6 +176,25 @@ Plan: ${JSON.stringify(plan)}`;
   return content.trim();
 };
 
+export const generateFocusTip = async (
+  task: { title: string; description?: string },
+  settings: ApiSettings,
+  language: "zh" | "en"
+): Promise<string> => {
+  const systemPrompt =
+    language === "zh"
+      ? "你是高效办公助手，只输出一句很短的实用建议（不超过20字），不要列表。"
+      : "You are a focus coach. Return one short practical tip (<= 20 words), no bullets.";
+  const userPrompt = `Task: ${task.title}\nNotes: ${task.description ?? ""}`;
+
+  const content = await callModel(settings, [
+    { role: "system", content: systemPrompt },
+    { role: "user", content: userPrompt }
+  ]);
+
+  return content.trim();
+};
+
 export const suggestCategoryForEntry = async (
   entry: { title: string; content: string },
   categories: string[],

@@ -74,6 +74,12 @@ export type ApiSettings = {
   taskSystemPrompt?: string;
 };
 
+export type UiSettings = {
+  stickyMode: boolean;
+  alwaysOnTop: boolean;
+  tipsEnabled: boolean;
+};
+
 export type CalendarViewMode = "week" | "focus";
 
 export type KnowledgeCategory = {
