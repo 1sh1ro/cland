@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Task } from "../lib/types";
 
 export type TaskDraft = {
@@ -26,6 +26,7 @@ type TaskFormProps = {
 const TaskForm = ({ draft, onChange, onSubmit, onReset, selectedTask, t, highlightKey }: TaskFormProps) => {
   const [pulse, setPulse] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const lastTaskIdRef = useRef<string | null>(null);
 
   const hasAdvancedValues =
     Boolean(draft.description.trim()) ||
@@ -48,10 +49,12 @@ const TaskForm = ({ draft, onChange, onSubmit, onReset, selectedTask, t, highlig
   }, [highlightKey]);
 
   useEffect(() => {
-    if (!showAdvanced && hasAdvancedValues) {
-      setShowAdvanced(true);
+    const currentId = selectedTask?.id ?? null;
+    if (currentId !== lastTaskIdRef.current) {
+      lastTaskIdRef.current = currentId;
+      setShowAdvanced(currentId ? hasAdvancedValues : false);
     }
-  }, [hasAdvancedValues, showAdvanced]);
+  }, [hasAdvancedValues, selectedTask?.id]);
 
   return (
     <div className={`panel task-form ${pulse ? "pulse" : ""}`}>
