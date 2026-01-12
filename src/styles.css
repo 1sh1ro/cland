@@ -186,8 +186,8 @@ body {
 }
 
 .layout {
-  --left-col: 320px;
-  --sidebar-col: 320px;
+  --left-col: 360px;
+  --sidebar-col: 360px;
   display: grid;
   grid-template-columns: var(--left-col) minmax(560px, 1fr) var(--sidebar-col);
   gap: 18px;
