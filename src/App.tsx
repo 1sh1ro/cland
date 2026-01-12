@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { appWindow, LogicalSize } from "@tauri-apps/api/window";
 import TaskForm, { TaskDraft } from "./components/TaskForm";
 import TaskList from "./components/TaskList";
@@ -275,6 +275,9 @@ const App = () => {
   const [focusTip, setFocusTip] = useState("");
   const [tipBusy, setTipBusy] = useState(false);
   const [now, setNow] = useState(() => new Date());
+  const [uiScale, setUiScale] = useState(1);
+  const [baseSize, setBaseSize] = useState({ width: 1280, height: 760 });
+  const baseSizeRef = useRef({ width: 1280, height: 760, ready: false });
 
   const t = useMemo(() => createTranslator(language), [language]);
   const timeFormatter = useMemo(
@@ -298,6 +301,50 @@ const App = () => {
     const timer = setInterval(() => setNow(new Date()), 30000);
     return () => clearInterval(timer);
   }, []);
+
+  useEffect(() => {
+    if (uiSettings.stickyMode) {
+      return;
+    }
+    const roundScale = (value: number) => Math.round(value * 100) / 100;
+    if (isTauri) {
+      const updateScale = async () => {
+        const size = await appWindow.innerSize();
+        if (!baseSizeRef.current.ready) {
+          baseSizeRef.current = { width: size.width, height: size.height, ready: true };
+          setBaseSize({ width: size.width, height: size.height });
+        }
+        const base = baseSizeRef.current;
+        const scale = Math.max(1, Math.min(size.width / base.width, size.height / base.height));
+        setUiScale(roundScale(scale));
+      };
+      const setup = async () => {
+        await updateScale();
+        const base = baseSizeRef.current;
+        await appWindow.setMinSize(new LogicalSize(base.width, base.height));
+      };
+      setup();
+      const unlistenPromise = appWindow.onResized(() => {
+        updateScale();
+      });
+      return () => {
+        unlistenPromise.then((unlisten) => unlisten());
+      };
+    }
+    const updateFromWindow = () => {
+      const size = { width: window.innerWidth, height: window.innerHeight };
+      if (!baseSizeRef.current.ready) {
+        baseSizeRef.current = { width: size.width, height: size.height, ready: true };
+        setBaseSize(size);
+      }
+      const base = baseSizeRef.current;
+      const scale = Math.max(1, Math.min(size.width / base.width, size.height / base.height));
+      setUiScale(roundScale(scale));
+    };
+    updateFromWindow();
+    window.addEventListener("resize", updateFromWindow);
+    return () => window.removeEventListener("resize", updateFromWindow);
+  }, [isTauri, uiSettings.stickyMode]);
 
   useEffect(() => {
     saveToStorage(STORAGE_KEYS.tasks, tasks);
@@ -818,8 +865,15 @@ const App = () => {
     );
   }
 
+  const scaleStyle = {
+    "--ui-scale": uiScale,
+    "--app-base-width": `${baseSize.width}px`,
+    "--app-base-height": `${baseSize.height}px`
+  } as CSSProperties;
+
   return (
-    <div className="app">
+    <div className="app-shell" style={scaleStyle}>
+      <div className="app app-scaled">
       <div className="titlebar" data-tauri-drag-region>
         <div className="titlebar-left" data-tauri-drag-region>
           <AppLogo />
@@ -1111,6 +1165,7 @@ const App = () => {
           </div>
         </div>
       ) : null}
+      </div>
     </div>
   );
 };

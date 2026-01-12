@@ -36,6 +36,22 @@ body {
   flex-direction: column;
 }
 
+.app-shell {
+  height: 100%;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  overflow: hidden;
+}
+
+.app.app-scaled {
+  width: var(--app-base-width);
+  height: var(--app-base-height);
+  transform: scale(var(--ui-scale));
+  transform-origin: top center;
+}
+
 .app-header {
   display: flex;
   justify-content: space-between;
