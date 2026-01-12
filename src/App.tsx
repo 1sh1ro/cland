@@ -744,7 +744,7 @@ const App = () => {
           previousWindowState.current = { size, resizable };
         }
         await appWindow.setResizable(false);
-        await appWindow.setSize(new LogicalSize(360, 220));
+        await appWindow.setSize(new LogicalSize(420, 260));
         await appWindow.setAlwaysOnTop(uiSettings.alwaysOnTop);
       } else if (previousWindowState.current) {
         await appWindow.setAlwaysOnTop(false);
