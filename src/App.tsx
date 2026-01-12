@@ -364,6 +364,19 @@ const App = () => {
     }, {});
   }, [tasks]);
 
+  const taskDifficultyMap = useMemo(() => {
+    return tasks.reduce<Record<string, string>>((acc, task) => {
+      if (task.priority >= 4) {
+        acc[task.id] = t("calendar.difficultyHigh");
+      } else if (task.priority >= 3) {
+        acc[task.id] = t("calendar.difficultyMedium");
+      } else {
+        acc[task.id] = t("calendar.difficultyLow");
+      }
+      return acc;
+    }, {});
+  }, [tasks, t]);
+
   const currentBlock = useMemo(() => {
     if (!plan) {
       return null;
@@ -926,6 +939,7 @@ const App = () => {
             events={events}
             settings={settings}
             taskMap={taskMap}
+            taskDifficultyMap={taskDifficultyMap}
             t={t}
             viewMode={calendarView}
             onViewModeChange={setCalendarView}

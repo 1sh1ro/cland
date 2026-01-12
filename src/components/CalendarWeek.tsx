@@ -13,6 +13,7 @@ type CalendarWeekProps = {
   events: CalendarEvent[];
   settings: Settings;
   taskMap: Record<string, string>;
+  taskDifficultyMap: Record<string, string>;
   t: (key: string) => string;
   viewMode: CalendarViewMode;
   onViewModeChange: (mode: CalendarViewMode) => void;
@@ -34,7 +35,6 @@ type SegmentItem = {
   title: string;
   start: string;
   end: string;
-  confidence?: number;
   locked?: boolean;
   block?: PlannedBlock;
 };
@@ -53,6 +53,7 @@ const CalendarWeek = ({
   events,
   settings,
   taskMap,
+  taskDifficultyMap,
   t,
   viewMode,
   onViewModeChange,
@@ -214,14 +215,13 @@ const CalendarWeek = ({
                             )
                             .map((block) => ({
                               id: block.id,
-                              kind: "block" as const,
-                              title: taskMap[block.taskId] ?? t("plan.unknownTask"),
-                              start: block.start,
-                              end: block.end,
-                              confidence: block.confidence,
-                              locked: block.locked,
-                              block
-                            }))
+                            kind: "block" as const,
+                            title: taskMap[block.taskId] ?? t("plan.unknownTask"),
+                            start: block.start,
+                            end: block.end,
+                            locked: block.locked,
+                            block
+                          }))
                         ].sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
 
                         return (
@@ -242,6 +242,12 @@ const CalendarWeek = ({
                                     item.kind === "block"
                                       ? isWithin(now, new Date(item.start), new Date(item.end))
                                       : false;
+                                  const isUpcoming =
+                                    item.kind === "block" ? new Date(item.start).getTime() > now.getTime() : false;
+                                  const difficulty =
+                                    item.kind === "block" && item.block
+                                      ? taskDifficultyMap[item.block.taskId] ?? t("calendar.difficultyMedium")
+                                      : "";
                                   return (
                                     <div
                                       key={`${segment.key}-${item.kind}-${item.id}`}
@@ -319,15 +325,21 @@ const CalendarWeek = ({
                                         <div className="meta">{formatTimeRange(item.start, item.end)}</div>
                                       </div>
                                       <div className="item-meta">
-                                        {inProgress ? (
-                                          <span className="in-progress">
-                                            <span className="pulse-dot" />
-                                            {t("calendar.inProgress")}
-                                          </span>
-                                        ) : null}
-                                        {item.kind === "block" && item.confidence !== undefined ? (
+                                        <div className="item-status">
+                                          {inProgress ? (
+                                            <span className="in-progress">
+                                              <span className="pulse-dot" />
+                                              {t("calendar.inProgress")}
+                                            </span>
+                                          ) : isUpcoming ? (
+                                            <span className="status-upcoming">{t("calendar.upcoming")}</span>
+                                          ) : (
+                                            <span className="status-empty">{"\u00A0"}</span>
+                                          )}
+                                        </div>
+                                        {item.kind === "block" ? (
                                           <div className="badge">
-                                            {t("calendar.confidence")} {Math.round(item.confidence * 100)}%
+                                            {t("calendar.difficulty")} {difficulty}
                                           </div>
                                         ) : null}
                                       </div>
