@@ -25,6 +25,14 @@ type TaskFormProps = {
 
 const TaskForm = ({ draft, onChange, onSubmit, onReset, selectedTask, t, highlightKey }: TaskFormProps) => {
   const [pulse, setPulse] = useState(false);
+  const [showAdvanced, setShowAdvanced] = useState(false);
+
+  const hasAdvancedValues =
+    Boolean(draft.description.trim()) ||
+    Boolean(draft.earliestStart) ||
+    draft.minBlockMinutes > 30 ||
+    draft.maxBlockMinutes > 120 ||
+    !draft.interruptible;
 
   useEffect(() => {
     if (!highlightKey) {
@@ -39,6 +47,12 @@ const TaskForm = ({ draft, onChange, onSubmit, onReset, selectedTask, t, highlig
     };
   }, [highlightKey]);
 
+  useEffect(() => {
+    if (!showAdvanced && hasAdvancedValues) {
+      setShowAdvanced(true);
+    }
+  }, [hasAdvancedValues, showAdvanced]);
+
   return (
     <div className={`panel task-form ${pulse ? "pulse" : ""}`}>
       <div className="panel-header">
@@ -52,14 +66,6 @@ const TaskForm = ({ draft, onChange, onSubmit, onReset, selectedTask, t, highlig
             value={draft.title}
             onChange={(event) => onChange({ ...draft, title: event.target.value })}
             placeholder={t("taskForm.titlePlaceholder")}
-          />
-        </label>
-        <label className="field">
-          <span>{t("taskForm.description")}</span>
-          <textarea
-            value={draft.description}
-            onChange={(event) => onChange({ ...draft, description: event.target.value })}
-            placeholder={t("taskForm.descriptionPlaceholder")}
           />
         </label>
         <div className="field-grid">
@@ -83,52 +89,69 @@ const TaskForm = ({ draft, onChange, onSubmit, onReset, selectedTask, t, highlig
             />
           </label>
         </div>
-        <div className="field-grid">
-          <label className="field">
-            <span>{t("taskForm.earliest")}</span>
-            <input
-              type="datetime-local"
-              value={draft.earliestStart}
-              onChange={(event) => onChange({ ...draft, earliestStart: event.target.value })}
-            />
-          </label>
-          <label className="field">
-            <span>{t("taskForm.deadline")}</span>
-            <input
-              type="datetime-local"
-              value={draft.deadline}
-              onChange={(event) => onChange({ ...draft, deadline: event.target.value })}
-            />
-          </label>
-        </div>
-        <div className="field-grid">
-          <label className="field">
-            <span>{t("taskForm.minBlock")}</span>
-            <input
-              type="number"
-              min={30}
-              value={draft.minBlockMinutes}
-              onChange={(event) => onChange({ ...draft, minBlockMinutes: Number(event.target.value) })}
-            />
-          </label>
-          <label className="field">
-            <span>{t("taskForm.maxBlock")}</span>
-            <input
-              type="number"
-              min={30}
-              value={draft.maxBlockMinutes}
-              onChange={(event) => onChange({ ...draft, maxBlockMinutes: Number(event.target.value) })}
-            />
-          </label>
-        </div>
-        <label className="field inline">
+        <label className="field">
+          <span>{t("taskForm.deadline")}</span>
           <input
-            type="checkbox"
-            checked={draft.interruptible}
-            onChange={(event) => onChange({ ...draft, interruptible: event.target.checked })}
+            type="datetime-local"
+            value={draft.deadline}
+            onChange={(event) => onChange({ ...draft, deadline: event.target.value })}
           />
-          <span>{t("taskForm.interruptible")}</span>
         </label>
+        <button
+          className="button tiny ghost advanced-toggle"
+          type="button"
+          onClick={() => setShowAdvanced((prev) => !prev)}
+        >
+          {showAdvanced ? t("taskForm.advancedHide") : t("taskForm.advancedShow")}
+        </button>
+        {showAdvanced ? (
+          <div className="advanced-section">
+            <label className="field">
+              <span>{t("taskForm.description")}</span>
+              <textarea
+                value={draft.description}
+                onChange={(event) => onChange({ ...draft, description: event.target.value })}
+                placeholder={t("taskForm.descriptionPlaceholder")}
+              />
+            </label>
+            <label className="field">
+              <span>{t("taskForm.earliest")}</span>
+              <input
+                type="datetime-local"
+                value={draft.earliestStart}
+                onChange={(event) => onChange({ ...draft, earliestStart: event.target.value })}
+              />
+            </label>
+            <div className="field-grid">
+              <label className="field">
+                <span>{t("taskForm.minBlock")}</span>
+                <input
+                  type="number"
+                  min={30}
+                  value={draft.minBlockMinutes}
+                  onChange={(event) => onChange({ ...draft, minBlockMinutes: Number(event.target.value) })}
+                />
+              </label>
+              <label className="field">
+                <span>{t("taskForm.maxBlock")}</span>
+                <input
+                  type="number"
+                  min={30}
+                  value={draft.maxBlockMinutes}
+                  onChange={(event) => onChange({ ...draft, maxBlockMinutes: Number(event.target.value) })}
+                />
+              </label>
+            </div>
+            <label className="field inline">
+              <input
+                type="checkbox"
+                checked={draft.interruptible}
+                onChange={(event) => onChange({ ...draft, interruptible: event.target.checked })}
+              />
+              <span>{t("taskForm.interruptible")}</span>
+            </label>
+          </div>
+        ) : null}
       </div>
       <div className="panel-footer">
         <button className="button tiny primary" onClick={onSubmit} disabled={!draft.title.trim()}>

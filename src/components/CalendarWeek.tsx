@@ -18,6 +18,13 @@ type CalendarWeekProps = {
   onViewModeChange: (mode: CalendarViewMode) => void;
   onBlockSelect: (block: PlannedBlock) => void;
   onBlockMove: (blockId: string, start: string, end: string) => void;
+  onGeneratePlan: () => void;
+  onExplainPlan: () => void;
+  onClearLocks: () => void;
+  hasPlan: boolean;
+  hasLockedBlocks: boolean;
+  isExplaining: boolean;
+  canGenerate: boolean;
   now: Date;
 };
 
@@ -51,6 +58,13 @@ const CalendarWeek = ({
   onViewModeChange,
   onBlockSelect,
   onBlockMove,
+  onGeneratePlan,
+  onExplainPlan,
+  onClearLocks,
+  hasPlan,
+  hasLockedBlocks,
+  isExplaining,
+  canGenerate,
   now
 }: CalendarWeekProps) => {
   const [dragTarget, setDragTarget] = useState<string | null>(null);
@@ -66,6 +80,10 @@ const CalendarWeek = ({
   const today = startOfDay(new Date());
   const dayCount = Math.min(viewMode === "week" ? 7 : 3, settings.planningHorizonDays);
   const days = Array.from({ length: dayCount }, (_, index) => addDays(today, index));
+  const hasItems = blocks.length > 0 || events.length > 0;
+  const actionLabel = hasPlan ? t("plan.replan") : t("header.generatePlan");
+  const explainLabel = isExplaining ? t("nl.explaining") : t("nl.explain");
+  const emptyHint = canGenerate ? t("plan.empty") : t("status.addTaskPrompt");
   const dayByKey = useMemo(() => {
     return days.reduce<Map<string, Date>>((acc, day) => {
       acc.set(dayKey(day), day);
@@ -125,182 +143,209 @@ const CalendarWeek = ({
 
   return (
     <div className="panel calendar-panel">
-      <div className="panel-header">
+      <div className="panel-header calendar-header">
         <h2>{t("calendar.title")}</h2>
-        <div className="view-toggle">
-          <button
-            className={`chip ${viewMode === "week" ? "active" : ""}`}
-            onClick={() => onViewModeChange("week")}
-          >
-            {t("calendar.weekView")}
-          </button>
-          <button
-            className={`chip ${viewMode === "focus" ? "active" : ""}`}
-            onClick={() => onViewModeChange("focus")}
-          >
-            {t("calendar.focusView")}
-          </button>
+        <div className="calendar-header-actions">
+          <div className="calendar-actions">
+            <button className="button primary" onClick={onGeneratePlan} disabled={!canGenerate}>
+              {actionLabel}
+            </button>
+            <button className="button ghost" onClick={onExplainPlan} disabled={!hasPlan || isExplaining}>
+              {explainLabel}
+            </button>
+            {hasLockedBlocks ? (
+              <button className="button ghost" onClick={onClearLocks}>
+                {t("calendar.clearLocks")}
+              </button>
+            ) : null}
+          </div>
+          <div className="view-toggle">
+            <button
+              className={`chip ${viewMode === "week" ? "active" : ""}`}
+              onClick={() => onViewModeChange("week")}
+            >
+              {t("calendar.weekView")}
+            </button>
+            <button
+              className={`chip ${viewMode === "focus" ? "active" : ""}`}
+              onClick={() => onViewModeChange("focus")}
+            >
+              {t("calendar.focusView")}
+            </button>
+          </div>
         </div>
       </div>
       <div className="panel-body">
-        <div className="calendar">
-          <div className={`days ${viewMode}`}>
-            {days.map((day) => {
-              const key = dayKey(day);
-              const dayBlocks = blocksByDay[key] ?? [];
-              const dayEvents = eventsByDay[key] ?? [];
-              return (
-                <div key={key} className="day-column">
-                  <div className="day-header">{formatShortDate(day)}</div>
-                  <div className="day-body">
-                    {segments.map((segment) => {
-                      const items: SegmentItem[] = [
-                        ...dayEvents
-                          .filter((event) =>
-                            isInSegment(new Date(event.start), new Date(event.end), segment.start, segment.end)
-                          )
-                          .map((event) => ({
-                            id: event.id,
-                            kind: "busy" as const,
-                            title: event.title,
-                            start: event.start,
-                            end: event.end
-                          })),
-                        ...dayBlocks
-                          .filter((block) =>
-                            isInSegment(new Date(block.start), new Date(block.end), segment.start, segment.end)
-                          )
-                          .map((block) => ({
-                            id: block.id,
-                            kind: "block" as const,
-                            title: taskMap[block.taskId] ?? t("plan.unknownTask"),
-                            start: block.start,
-                            end: block.end,
-                            confidence: block.confidence,
-                            locked: block.locked,
-                            block
-                          }))
-                      ].sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
-
-                      return (
-                        <div key={segment.key} className="segment">
-                          <div className="segment-header">{t(segment.labelKey)}</div>
-                          <div
-                            className={`segment-body ${
-                              dragTarget === `${key}-${segment.start}` ? "drag-over" : ""
-                            }`}
-                            data-day-key={key}
-                            data-segment-start={segment.start}
-                          >
-                            {items.length === 0 ? (
-                              <div className="empty">{t("calendar.empty")}</div>
-                            ) : (
-                              items.map((item) => {
-                                const inProgress =
-                                  item.kind === "block"
-                                    ? isWithin(now, new Date(item.start), new Date(item.end))
-                                    : false;
-                                return (
-                                  <div
-                                    key={`${segment.key}-${item.kind}-${item.id}`}
-                                    className={`segment-item ${item.kind} ${item.locked ? "locked" : ""} ${
-                                      item.kind === "block" ? "clickable" : ""
-                                    } ${
-                                      item.kind === "block" && pointerDrag?.blockId === item.block?.id ? "dragging" : ""
-                                    }`}
-                                    title={formatTimeRange(item.start, item.end)}
-                                    onPointerDown={(event) => {
-                                      if (item.kind !== "block" || !item.block) {
-                                        return;
-                                      }
-                                      event.currentTarget.setPointerCapture(event.pointerId);
-                                      setPointerDrag({
-                                        blockId: item.block.id,
-                                        startX: event.clientX,
-                                        startY: event.clientY,
-                                        pointerId: event.pointerId
-                                      });
-                                      setIsPointerDragging(false);
-                                    }}
-                                    onPointerMove={(event) => {
-                                      if (item.kind !== "block" || !item.block || !pointerDrag) {
-                                        return;
-                                      }
-                                      if (
-                                        pointerDrag.blockId !== item.block.id ||
-                                        pointerDrag.pointerId !== event.pointerId
-                                      ) {
-                                        return;
-                                      }
-                                      if (!isPointerDragging) {
-                                        const dx = event.clientX - pointerDrag.startX;
-                                        const dy = event.clientY - pointerDrag.startY;
-                                        if (Math.hypot(dx, dy) > 6) {
-                                          setIsPointerDragging(true);
-                                          setSuppressClickId(item.block.id);
-                                          updateDropTargetFromPointer(event.clientX, event.clientY);
-                                        }
-                                        return;
-                                      }
-                                      updateDropTargetFromPointer(event.clientX, event.clientY);
-                                    }}
-                                    onPointerUp={(event) => {
-                                      if (pointerDrag && pointerDrag.pointerId === event.pointerId) {
-                                        if (isPointerDragging && dropTarget) {
-                                          const dayForDrop = dayByKey.get(dropTarget.key);
-                                          if (dayForDrop) {
-                                            handleDrop(pointerDrag.blockId, dayForDrop, dropTarget.segmentStart);
-                                          }
-                                        }
-                                        resetPointerDrag();
-                                        event.currentTarget.releasePointerCapture(event.pointerId);
-                                      }
-                                    }}
-                                    onPointerCancel={(event) => {
-                                      if (pointerDrag && pointerDrag.pointerId === event.pointerId) {
-                                        resetPointerDrag();
-                                        event.currentTarget.releasePointerCapture(event.pointerId);
-                                      }
-                                    }}
-                                    onClick={() => {
-                                      if (item.kind === "block" && suppressClickId === item.block?.id) {
-                                        setSuppressClickId(null);
-                                        return;
-                                      }
-                                      if (item.kind === "block" && item.block) {
-                                        onBlockSelect(item.block);
-                                      }
-                                    }}
-                                  >
-                                    <div>
-                                      <strong>{item.title}</strong>
-                                      <div className="meta">{formatTimeRange(item.start, item.end)}</div>
-                                    </div>
-                                    <div className="item-meta">
-                                      {inProgress ? (
-                                        <span className="in-progress">
-                                          <span className="pulse-dot" />
-                                          {t("calendar.inProgress")}
-                                        </span>
-                                      ) : null}
-                                      {item.kind === "block" && item.confidence !== undefined ? (
-                                        <div className="badge">{Math.round(item.confidence * 100)}%</div>
-                                      ) : null}
-                                    </div>
-                                  </div>
-                                );
-                              })
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              );
-            })}
+        {!hasItems ? (
+          <div className="calendar-empty">
+            <div className="empty-title">{t("calendar.empty")}</div>
+            <div className="empty-hint">{emptyHint}</div>
+            <button className="button primary" onClick={onGeneratePlan} disabled={!canGenerate}>
+              {actionLabel}
+            </button>
           </div>
-        </div>
+        ) : (
+          <div className="calendar">
+            <div className={`days ${viewMode}`}>
+              {days.map((day) => {
+                const key = dayKey(day);
+                const dayBlocks = blocksByDay[key] ?? [];
+                const dayEvents = eventsByDay[key] ?? [];
+                return (
+                  <div key={key} className="day-column">
+                    <div className="day-header">{formatShortDate(day)}</div>
+                    <div className="day-body">
+                      {segments.map((segment) => {
+                        const items: SegmentItem[] = [
+                          ...dayEvents
+                            .filter((event) =>
+                              isInSegment(new Date(event.start), new Date(event.end), segment.start, segment.end)
+                            )
+                            .map((event) => ({
+                              id: event.id,
+                              kind: "busy" as const,
+                              title: event.title,
+                              start: event.start,
+                              end: event.end
+                            })),
+                          ...dayBlocks
+                            .filter((block) =>
+                              isInSegment(new Date(block.start), new Date(block.end), segment.start, segment.end)
+                            )
+                            .map((block) => ({
+                              id: block.id,
+                              kind: "block" as const,
+                              title: taskMap[block.taskId] ?? t("plan.unknownTask"),
+                              start: block.start,
+                              end: block.end,
+                              confidence: block.confidence,
+                              locked: block.locked,
+                              block
+                            }))
+                        ].sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
+
+                        return (
+                          <div key={segment.key} className="segment">
+                            <div className="segment-header">{t(segment.labelKey)}</div>
+                            <div
+                              className={`segment-body ${
+                                dragTarget === `${key}-${segment.start}` ? "drag-over" : ""
+                              }`}
+                              data-day-key={key}
+                              data-segment-start={segment.start}
+                            >
+                              {items.length === 0 ? (
+                                <div className="empty">{t("calendar.empty")}</div>
+                              ) : (
+                                items.map((item) => {
+                                  const inProgress =
+                                    item.kind === "block"
+                                      ? isWithin(now, new Date(item.start), new Date(item.end))
+                                      : false;
+                                  return (
+                                    <div
+                                      key={`${segment.key}-${item.kind}-${item.id}`}
+                                      className={`segment-item ${item.kind} ${item.locked ? "locked" : ""} ${
+                                        item.kind === "block" ? "clickable" : ""
+                                      } ${
+                                        item.kind === "block" && pointerDrag?.blockId === item.block?.id ? "dragging" : ""
+                                      }`}
+                                      title={formatTimeRange(item.start, item.end)}
+                                      onPointerDown={(event) => {
+                                        if (item.kind !== "block" || !item.block) {
+                                          return;
+                                        }
+                                        event.currentTarget.setPointerCapture(event.pointerId);
+                                        setPointerDrag({
+                                          blockId: item.block.id,
+                                          startX: event.clientX,
+                                          startY: event.clientY,
+                                          pointerId: event.pointerId
+                                        });
+                                        setIsPointerDragging(false);
+                                      }}
+                                      onPointerMove={(event) => {
+                                        if (item.kind !== "block" || !item.block || !pointerDrag) {
+                                          return;
+                                        }
+                                        if (
+                                          pointerDrag.blockId !== item.block.id ||
+                                          pointerDrag.pointerId !== event.pointerId
+                                        ) {
+                                          return;
+                                        }
+                                        if (!isPointerDragging) {
+                                          const dx = event.clientX - pointerDrag.startX;
+                                          const dy = event.clientY - pointerDrag.startY;
+                                          if (Math.hypot(dx, dy) > 6) {
+                                            setIsPointerDragging(true);
+                                            setSuppressClickId(item.block.id);
+                                            updateDropTargetFromPointer(event.clientX, event.clientY);
+                                          }
+                                          return;
+                                        }
+                                        updateDropTargetFromPointer(event.clientX, event.clientY);
+                                      }}
+                                      onPointerUp={(event) => {
+                                        if (pointerDrag && pointerDrag.pointerId === event.pointerId) {
+                                          if (isPointerDragging && dropTarget) {
+                                            const dayForDrop = dayByKey.get(dropTarget.key);
+                                            if (dayForDrop) {
+                                              handleDrop(pointerDrag.blockId, dayForDrop, dropTarget.segmentStart);
+                                            }
+                                          }
+                                          resetPointerDrag();
+                                          event.currentTarget.releasePointerCapture(event.pointerId);
+                                        }
+                                      }}
+                                      onPointerCancel={(event) => {
+                                        if (pointerDrag && pointerDrag.pointerId === event.pointerId) {
+                                          resetPointerDrag();
+                                          event.currentTarget.releasePointerCapture(event.pointerId);
+                                        }
+                                      }}
+                                      onClick={() => {
+                                        if (item.kind === "block" && suppressClickId === item.block?.id) {
+                                          setSuppressClickId(null);
+                                          return;
+                                        }
+                                        if (item.kind === "block" && item.block) {
+                                          onBlockSelect(item.block);
+                                        }
+                                      }}
+                                    >
+                                      <div>
+                                        <strong>{item.title}</strong>
+                                        <div className="meta">{formatTimeRange(item.start, item.end)}</div>
+                                      </div>
+                                      <div className="item-meta">
+                                        {inProgress ? (
+                                          <span className="in-progress">
+                                            <span className="pulse-dot" />
+                                            {t("calendar.inProgress")}
+                                          </span>
+                                        ) : null}
+                                        {item.kind === "block" && item.confidence !== undefined ? (
+                                          <div className="badge">
+                                            {t("calendar.confidence")} {Math.round(item.confidence * 100)}%
+                                          </div>
+                                        ) : null}
+                                      </div>
+                                    </div>
+                                  );
+                                })
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -264,6 +264,7 @@ const App = () => {
   const [aiResponse, setAiResponse] = useState("");
   const [aiSuggestion, setAiSuggestion] = useState<{ category: string; reason: string } | null>(null);
   const [aiBusy, setAiBusy] = useState(false);
+  const [sidebarTab, setSidebarTab] = useState<"memo" | "knowledge" | "ai">("memo");
   const [draft, setDraft] = useState<TaskDraft>(() => createEmptyDraft());
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [inputText, setInputText] = useState("");
@@ -390,6 +391,10 @@ const App = () => {
     return formatTimeRange(currentBlock.start, currentBlock.end);
   }, [currentBlock]);
 
+  const hasPlanBlocks = (plan?.blocks?.length ?? 0) > 0;
+  const hasLockedBlocks = (plan?.blocks?.some((block) => block.locked) ?? false) === true;
+  const canGeneratePlan = tasks.length > 0;
+
   useEffect(() => {
     if (knowledgeCategories.length === 0) {
       const fallback = { id: crypto.randomUUID(), name: "General" };
@@ -419,6 +424,18 @@ const App = () => {
     if (task) {
       openTaskDetail(task);
     }
+  };
+
+  const handleClearLocks = () => {
+    setPlan((prev) => {
+      if (!prev) {
+        return prev;
+      }
+      return {
+        ...prev,
+        blocks: prev.blocks.map((block) => (block.locked ? { ...block, locked: false } : block))
+      };
+    });
   };
 
   const handleCalendarBlockMove = (blockId: string, start: string, end: string) => {
@@ -866,9 +883,6 @@ const App = () => {
           {statusMessage}
         </div>
         <div className="header-actions">
-          <button className="button primary" onClick={handleGeneratePlan}>
-            {t("header.generatePlan")}
-          </button>
           <button className="button ghost" onClick={() => setSettingsOpen(true)}>
             {t("header.settings")}
           </button>
@@ -901,9 +915,6 @@ const App = () => {
                 <button className="button" onClick={handleParse} disabled={isParsing}>
                   {isParsing ? t("nl.parsing") : t("nl.parse")}
                 </button>
-                <button className="button ghost" onClick={handleExplainPlan} disabled={isExplaining}>
-                  {isExplaining ? t("nl.explaining") : t("nl.explain")}
-                </button>
               </div>
             </div>
           </div>
@@ -920,6 +931,13 @@ const App = () => {
             onViewModeChange={setCalendarView}
             onBlockSelect={handleCalendarBlockSelect}
             onBlockMove={handleCalendarBlockMove}
+            onGeneratePlan={handleGeneratePlan}
+            onExplainPlan={handleExplainPlan}
+            onClearLocks={handleClearLocks}
+            hasPlan={hasPlanBlocks}
+            hasLockedBlocks={hasLockedBlocks}
+            isExplaining={isExplaining}
+            canGenerate={canGeneratePlan}
             now={now}
           />
         </div>
@@ -935,36 +953,60 @@ const App = () => {
               {sidebarCollapsed ? "»" : "«"}
             </button>
           </div>
+          <div className="sidebar-tabs">
+            <button
+              className={`chip ${sidebarTab === "memo" ? "active" : ""}`}
+              onClick={() => setSidebarTab("memo")}
+            >
+              {t("memo.title")}
+            </button>
+            <button
+              className={`chip ${sidebarTab === "knowledge" ? "active" : ""}`}
+              onClick={() => setSidebarTab("knowledge")}
+            >
+              {t("knowledge.title")}
+            </button>
+            <button
+              className={`chip ${sidebarTab === "ai" ? "active" : ""}`}
+              onClick={() => setSidebarTab("ai")}
+            >
+              {t("ai.title")}
+            </button>
+          </div>
           <div className="sidebar-content">
-            <MemoPanel memo={memo} onChange={setMemo} t={t} />
-            <KnowledgeBasePanel
-              categories={knowledgeCategories}
-              items={knowledgeItems}
-              selectedCategoryId={selectedCategoryId}
-              onSelectCategory={setSelectedCategoryId}
-              onAddCategory={handleAddCategory}
-              draft={knowledgeDraft}
-              onDraftChange={setKnowledgeDraft}
-              onAddItem={handleAddKnowledgeItem}
-              onViewItem={handleViewKnowledgeItem}
-              onDeleteItem={handleDeleteKnowledgeItem}
-              t={t}
-            />
-            <KnowledgeAiPanel
-              mode={aiMode}
-              onModeChange={setAiMode}
-              question={aiQuestion}
-              onQuestionChange={setAiQuestion}
-              response={aiResponse}
-              suggestion={aiSuggestion}
-              onAsk={handleAskKnowledge}
-              onClassify={handleClassifyKnowledge}
-              onApplySuggestion={applyAiSuggestion}
-              isBusy={aiBusy}
-              draft={{ title: knowledgeDraft.title, content: knowledgeDraft.content }}
-              categories={knowledgeCategories}
-              t={t}
-            />
+            {sidebarTab === "memo" ? <MemoPanel memo={memo} onChange={setMemo} t={t} /> : null}
+            {sidebarTab === "knowledge" ? (
+              <KnowledgeBasePanel
+                categories={knowledgeCategories}
+                items={knowledgeItems}
+                selectedCategoryId={selectedCategoryId}
+                onSelectCategory={setSelectedCategoryId}
+                onAddCategory={handleAddCategory}
+                draft={knowledgeDraft}
+                onDraftChange={setKnowledgeDraft}
+                onAddItem={handleAddKnowledgeItem}
+                onViewItem={handleViewKnowledgeItem}
+                onDeleteItem={handleDeleteKnowledgeItem}
+                t={t}
+              />
+            ) : null}
+            {sidebarTab === "ai" ? (
+              <KnowledgeAiPanel
+                mode={aiMode}
+                onModeChange={setAiMode}
+                question={aiQuestion}
+                onQuestionChange={setAiQuestion}
+                response={aiResponse}
+                suggestion={aiSuggestion}
+                onAsk={handleAskKnowledge}
+                onClassify={handleClassifyKnowledge}
+                onApplySuggestion={applyAiSuggestion}
+                isBusy={aiBusy}
+                draft={{ title: knowledgeDraft.title, content: knowledgeDraft.content }}
+                categories={knowledgeCategories}
+                t={t}
+              />
+            ) : null}
           </div>
         </div>
       </div>
