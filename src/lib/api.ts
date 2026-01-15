@@ -99,16 +99,36 @@ export const parseTasksFromText = async (
   settings: ApiSettings,
   context: { timezone: string; workDayStart: string; workDayEnd: string }
 ): Promise<{ tasks: Task[]; assumptions: string[] }> => {
+  const now = new Date();
+  const nowParts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: context.timezone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    weekday: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+    timeZoneName: "shortOffset"
+  }).formatToParts(now);
+  const getPart = (type: string) => nowParts.find((part) => part.type === type)?.value ?? "";
+  const currentDate = `${getPart("year")}-${getPart("month")}-${getPart("day")}`;
+  const currentTime = `${getPart("hour")}:${getPart("minute")}`;
+  const currentWeekday = getPart("weekday");
+  const currentOffset = getPart("timeZoneName");
+  const currentStamp = `${currentDate} ${currentTime} (${currentWeekday}) ${currentOffset}`;
+
   const basePrompt = applyPromptContext(DEFAULT_TASK_SYSTEM_PROMPT, context);
   const customNotes = settings.taskPromptNotes?.trim();
   const systemPrompt = customNotes
     ? `${basePrompt}\n\nUser preferences (apply when relevant):\n${customNotes}`
     : basePrompt;
+  const datedSystemPrompt = `${systemPrompt}\n\nCurrent date/time (${context.timezone}): ${currentStamp}. Use this to resolve relative dates like "today", "tomorrow", or weekday mentions.`;
 
-  const userPrompt = `Task input:\n${input}`;
+  const userPrompt = `Task input:\n${input}\n\nCurrent date/time (${context.timezone}): ${currentStamp}`;
 
   const content = await callModel(settings, [
-    { role: "system", content: systemPrompt },
+    { role: "system", content: datedSystemPrompt },
     { role: "user", content: userPrompt }
   ]);
 

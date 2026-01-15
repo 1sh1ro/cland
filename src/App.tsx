@@ -17,7 +17,7 @@ import {
 } from "./lib/api";
 import { createTranslator, type Language } from "./lib/i18n";
 import { loadFromStorage, saveToStorage } from "./lib/storage";
-import { formatTimeRange, fromLocalInputValue, toLocalInputValue } from "./lib/time";
+import { formatTimeRange, fromLocalInputValue, startOfDay, toLocalInputValue } from "./lib/time";
 import { generatePlan } from "./lib/scheduler";
 import type {
   ApiSettings,
@@ -26,6 +26,7 @@ import type {
   KnowledgeCategory,
   KnowledgeItem,
   PlanResult,
+  PlanWarning,
   PlannedBlock,
   Settings,
   Task,
@@ -79,7 +80,7 @@ const defaultSettings: Settings = {
   timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
   planningHorizonDays: 14,
   workDayStart: "09:00",
-  workDayEnd: "18:00",
+  workDayEnd: "21:00",
   lunchStart: "12:00",
   lunchEnd: "13:00",
   maxDailyMinutes: 360
@@ -100,6 +101,7 @@ const defaultUiSettings: UiSettings = {
 };
 
 const MIN_WINDOW_SIZE = { width: 1200, height: 720 };
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 const coerceApiSettings = (value: unknown): ApiSettings => {
   if (!value || typeof value !== "object") {
@@ -296,11 +298,24 @@ const App = () => {
   const isTauri =
     typeof window !== "undefined" && Boolean((window as Window & { __TAURI__?: unknown }).__TAURI__);
   const previousWindowState = useRef<null | { size: { width: number; height: number }; resizable: boolean }>(null);
+  const tasksRef = useRef(tasks);
+  const aiAssumptionsRef = useRef(aiAssumptions);
+  const eventsRef = useRef(events);
+  const settingsRef = useRef(settings);
+  const planRef = useRef<PlanResult | null>(plan);
 
   useEffect(() => {
     const timer = setInterval(() => setNow(new Date()), 30000);
     return () => clearInterval(timer);
   }, []);
+
+  useEffect(() => {
+    tasksRef.current = tasks;
+    aiAssumptionsRef.current = aiAssumptions;
+    eventsRef.current = events;
+    settingsRef.current = settings;
+    planRef.current = plan;
+  }, [tasks, aiAssumptions, events, settings, plan]);
 
   useEffect(() => {
     if (!isTauri || uiSettings.stickyMode) {
@@ -546,6 +561,30 @@ const App = () => {
     }
   };
 
+  const handleAddTaskToCalendar = (task: Task) => {
+    const baseTasks = tasksRef.current;
+    const baseEvents = eventsRef.current;
+    const baseSettings = settingsRef.current;
+    const basePlan = planRef.current;
+    const baseBlocks = basePlan?.blocks ?? [];
+    if (baseBlocks.some((block) => block.taskId === task.id)) {
+      setStatusMessage(t("status.taskAlreadyScheduled"));
+      return;
+    }
+    const horizonSettings = expandPlanningHorizon([task], baseSettings);
+    const planSettings = extendWorkHoursForTasks([task], horizonSettings);
+    const nextPlan = generatePlan([task], baseEvents, planSettings, baseBlocks);
+    nextPlan.assumptions = mergeAssumptions(nextPlan.assumptions, baseTasks, aiAssumptionsRef.current);
+    const addedBlocks = nextPlan.blocks.filter((block) => block.taskId === task.id);
+    if (addedBlocks.length === 0) {
+      const reason = buildScheduleFailureReason(task, planSettings, nextPlan.warnings);
+      setStatusMessage(t("status.taskNotScheduledReason", { reason }));
+      return;
+    }
+    setPlan(nextPlan);
+    setStatusMessage(t("status.taskScheduled", { count: addedBlocks.length }));
+  };
+
   const handleAddCategory = (name: string) => {
     const trimmed = name.trim();
     if (!trimmed) {
@@ -660,9 +699,170 @@ const App = () => {
     setKnowledgeDraft((prev) => ({ ...prev, categoryId: newCategory.id }));
   };
 
-  const mergeAssumptions = (baseAssumptions: string[]) => {
-    const taskAssumptions = tasks.flatMap((task) => task.assumptions ?? []);
-    return uniqueList([...baseAssumptions, ...aiAssumptions, ...taskAssumptions]);
+  const mergeAssumptions = (
+    baseAssumptions: string[],
+    taskList: Task[] = tasks,
+    aiAssumptionList: string[] = aiAssumptions
+  ) => {
+    const taskAssumptions = taskList.flatMap((task) => task.assumptions ?? []);
+    return uniqueList([...baseAssumptions, ...aiAssumptionList, ...taskAssumptions]);
+  };
+
+  const expandPlanningHorizon = (taskList: Task[], baseSettings: Settings) => {
+    const now = startOfDay(new Date());
+    let latestDate: Date | null = null;
+    taskList.forEach((task) => {
+      [task.earliestStart, task.deadline].forEach((value) => {
+        if (!value) {
+          return;
+        }
+        const candidate = new Date(value);
+        if (Number.isNaN(candidate.getTime())) {
+          return;
+        }
+        if (!latestDate || candidate.getTime() > latestDate.getTime()) {
+          latestDate = candidate;
+        }
+      });
+    });
+    if (!latestDate) {
+      return baseSettings;
+    }
+    const latestDay = startOfDay(latestDate);
+    const requiredDays = Math.max(1, Math.ceil((latestDay.getTime() - now.getTime()) / DAY_MS) + 1);
+    const planningHorizonDays = Math.max(baseSettings.planningHorizonDays, requiredDays);
+    if (planningHorizonDays === baseSettings.planningHorizonDays) {
+      return baseSettings;
+    }
+    return { ...baseSettings, planningHorizonDays };
+  };
+
+  const timeToMinutes = (value: string) => {
+    const [hours, minutes] = value.split(":").map((part) => Number(part));
+    if (!Number.isFinite(hours) || !Number.isFinite(minutes)) {
+      return 0;
+    }
+    return hours * 60 + minutes;
+  };
+
+  const minutesToTime = (totalMinutes: number) => {
+    const clamped = Math.min(24 * 60, Math.max(0, Math.round(totalMinutes)));
+    const hours = Math.floor(clamped / 60);
+    const minutes = clamped % 60;
+    return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+  };
+
+  const overlapMinutes = (startA: number, endA: number, startB: number, endB: number) => {
+    const start = Math.max(startA, startB);
+    const end = Math.min(endA, endB);
+    return Math.max(0, end - start);
+  };
+
+  const extendWorkHoursForTasks = (taskList: Task[], baseSettings: Settings) => {
+    let updated = false;
+    let workDayEndMinutes = timeToMinutes(baseSettings.workDayEnd);
+
+    taskList.forEach((task) => {
+      task.preferredTimeWindows?.forEach((window) => {
+        const windowEnd = timeToMinutes(window.end);
+        if (windowEnd > workDayEndMinutes) {
+          workDayEndMinutes = windowEnd;
+          updated = true;
+        }
+      });
+      if (task.earliestStart) {
+        const earliest = new Date(task.earliestStart);
+        if (!Number.isNaN(earliest.getTime())) {
+          const minutes = earliest.getHours() * 60 + earliest.getMinutes() + task.minBlockMinutes;
+          if (minutes > workDayEndMinutes) {
+            workDayEndMinutes = minutes;
+            updated = true;
+          }
+        }
+      }
+      if (task.deadline) {
+        const deadline = new Date(task.deadline);
+        if (!Number.isNaN(deadline.getTime())) {
+          const minutes = deadline.getHours() * 60 + deadline.getMinutes();
+          if (minutes > workDayEndMinutes) {
+            workDayEndMinutes = minutes;
+            updated = true;
+          }
+        }
+      }
+    });
+
+    if (!updated) {
+      return baseSettings;
+    }
+
+    const adjustedEnd = minutesToTime(workDayEndMinutes);
+    if (adjustedEnd === baseSettings.workDayEnd) {
+      return baseSettings;
+    }
+    return { ...baseSettings, workDayEnd: adjustedEnd };
+  };
+
+  const buildScheduleFailureReason = (task: Task, planSettings: Settings, warnings: PlanWarning[]) => {
+    const completedMinutes = task.completedMinutes ?? 0;
+    const remainingMinutes = Math.max(0, task.estimatedMinutes - completedMinutes);
+    if (remainingMinutes <= 0) {
+      return t("status.reason.completed");
+    }
+    if (task.deadline) {
+      const deadline = new Date(task.deadline);
+      if (!Number.isNaN(deadline.getTime()) && deadline.getTime() < Date.now()) {
+        return t("status.reason.deadlinePassed");
+      }
+    }
+    if (task.earliestStart && task.deadline) {
+      const earliest = new Date(task.earliestStart);
+      const deadline = new Date(task.deadline);
+      if (earliest.getTime() > deadline.getTime()) {
+        return t("status.reason.deadlineConflict");
+      }
+    }
+    const workStart = timeToMinutes(planSettings.workDayStart);
+    const workEnd = timeToMinutes(planSettings.workDayEnd);
+    const workMinutes = Math.max(0, workEnd - workStart);
+    if (workMinutes <= 0) {
+      return t("status.reason.workHours");
+    }
+    const lunchMinutes = overlapMinutes(
+      workStart,
+      workEnd,
+      timeToMinutes(planSettings.lunchStart),
+      timeToMinutes(planSettings.lunchEnd)
+    );
+    const availableWorkMinutes = Math.max(0, workMinutes - lunchMinutes);
+    if (availableWorkMinutes <= 0) {
+      return t("status.reason.workHours");
+    }
+    const dailyCapacity = Math.min(planSettings.maxDailyMinutes, availableWorkMinutes);
+    if (dailyCapacity < task.minBlockMinutes) {
+      return t("status.reason.dailyLimit", {
+        limit: dailyCapacity,
+        min: task.minBlockMinutes
+      });
+    }
+    const horizonCapacity = dailyCapacity * planSettings.planningHorizonDays;
+    if (horizonCapacity < remainingMinutes) {
+      return t("status.reason.horizon", {
+        capacity: horizonCapacity,
+        needed: remainingMinutes
+      });
+    }
+    const warning = warnings.find((item) => item.taskId === task.id);
+    if (warning) {
+      if (warning.code === "INSUFFICIENT_TIME") {
+        return t("status.reason.noFreeSlots");
+      }
+      if (warning.code === "DEADLINE_ALREADY_PASSED") {
+        return t("status.reason.deadlinePassed");
+      }
+      return warning.message;
+    }
+    return t("status.reason.noFreeSlots");
   };
 
   const handleGenerateTip = async () => {
@@ -694,7 +894,9 @@ const App = () => {
       setStatusMessage(t("status.addTaskPrompt"));
       return;
     }
-    const result = generatePlan(tasks, events, settings, plan?.blocks.filter((block) => block.locked) ?? []);
+    const horizonSettings = expandPlanningHorizon(tasks, settings);
+    const planSettings = extendWorkHoursForTasks(tasks, horizonSettings);
+    const result = generatePlan(tasks, events, planSettings, plan?.blocks.filter((block) => block.locked) ?? []);
     result.assumptions = mergeAssumptions(result.assumptions);
     setPlan(result);
     setStatusMessage(t("status.planGenerated", { time: new Date(result.generatedAt).toLocaleTimeString() }));
@@ -713,9 +915,30 @@ const App = () => {
         workDayStart: settings.workDayStart,
         workDayEnd: settings.workDayEnd
       });
-      setTasks((prev) => [...prev, ...result.tasks]);
-      setAiAssumptions((prev) => uniqueList([...prev, ...result.assumptions]));
-      setStatusMessage(t("status.parsed", { count: result.tasks.length }));
+      const baseTasks = tasksRef.current;
+      const baseAiAssumptions = aiAssumptionsRef.current;
+      const baseEvents = eventsRef.current;
+      const baseSettings = settingsRef.current;
+      const basePlan = planRef.current;
+      const nextTasks = [...baseTasks, ...result.tasks];
+      const nextAiAssumptions = uniqueList([...baseAiAssumptions, ...result.assumptions]);
+      setTasks(nextTasks);
+      setAiAssumptions(nextAiAssumptions);
+      if (result.tasks.length > 0) {
+        const horizonSettings = expandPlanningHorizon(nextTasks, baseSettings);
+        const planSettings = extendWorkHoursForTasks(nextTasks, horizonSettings);
+        const nextPlan = generatePlan(
+          nextTasks,
+          baseEvents,
+          planSettings,
+          basePlan?.blocks.filter((block) => block.locked) ?? []
+        );
+        nextPlan.assumptions = mergeAssumptions(nextPlan.assumptions, nextTasks, nextAiAssumptions);
+        setPlan(nextPlan);
+        setStatusMessage(t("status.planGenerated", { time: new Date(nextPlan.generatedAt).toLocaleTimeString() }));
+      } else {
+        setStatusMessage(t("status.parsed", { count: result.tasks.length }));
+      }
     } catch (error) {
       const fallback = t("status.parseFailed");
       setStatusMessage(error instanceof Error ? `${fallback} ${error.message}` : fallback);
@@ -903,7 +1126,7 @@ const App = () => {
       </header>
 
       <div className={`layout ${sidebarCollapsed ? "sidebar-collapsed" : ""}`}>
-        <div className="column">
+        <div className="column primary">
           <TaskForm
             draft={draft}
             onChange={setDraft}
@@ -931,7 +1154,15 @@ const App = () => {
               </div>
             </div>
           </div>
-          <TaskList tasks={tasks} onSelect={openTaskDetail} onDelete={handleDeleteTask} t={t} />
+          <TaskList
+            tasks={tasks}
+            onSelect={openTaskDetail}
+            onDelete={handleDeleteTask}
+            onAddToCalendar={handleAddTaskToCalendar}
+            onGeneratePlan={handleGeneratePlan}
+            canGenerate={canGeneratePlan}
+            t={t}
+          />
         </div>
         <div className="column wide">
           <CalendarWeek

@@ -283,6 +283,14 @@ body {
   height: 0;
 }
 
+.column.primary {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto auto;
+  gap: 18px;
+  min-height: 0;
+  overflow: hidden;
+}
+
 .column.wide {
   gap: 18px;
   min-height: 0;
@@ -354,6 +362,16 @@ body {
   animation: panelFade 0.6s ease both;
 }
 
+.task-form {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.column.primary .task-form {
+  flex: 1 1 auto;
+}
+
 .task-form.pulse {
   animation: formPulse 1.4s ease-in-out 1;
 }
@@ -370,6 +388,12 @@ body {
 .panel-header h2 {
   margin: 0;
   font-size: 18px;
+}
+
+.panel-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .panel.compact .panel-header {
@@ -401,6 +425,12 @@ body {
 
 .task-form .panel-body {
   gap: 18px;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 6px;
+  width: min(100%, 340px);
+  margin: 0 auto;
 }
 
 .panel-footer {
@@ -411,6 +441,8 @@ body {
 
 .task-form .panel-footer {
   padding-bottom: 22px;
+  width: min(100%, 340px);
+  margin: 0 auto;
 }
 
 .advanced-toggle {
@@ -620,9 +652,20 @@ textarea {
   border: 1px solid var(--line);
 }
 
+.list-item .link {
+  flex: 1;
+  min-width: 0;
+}
+
 .list-item span {
   font-size: 12px;
   color: var(--muted);
+}
+
+.list-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .progress-bar {

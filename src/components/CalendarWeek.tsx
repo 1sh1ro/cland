@@ -79,8 +79,18 @@ const CalendarWeek = ({
   const [isPointerDragging, setIsPointerDragging] = useState(false);
   const [suppressClickId, setSuppressClickId] = useState<string | null>(null);
   const today = startOfDay(new Date());
-  const dayCount = Math.min(viewMode === "week" ? 7 : 3, settings.planningHorizonDays);
-  const days = Array.from({ length: dayCount }, (_, index) => addDays(today, index));
+  const dayCount = Math.max(1, Math.min(viewMode === "week" ? 7 : 3, settings.planningHorizonDays));
+  const rangeEnd = addDays(today, dayCount);
+  const itemStarts = [...blocks, ...events]
+    .map((item) => new Date(item.start))
+    .filter((date) => !Number.isNaN(date.getTime()))
+    .sort((a, b) => a.getTime() - b.getTime());
+  const earliestItem = itemStarts[0];
+  const hasItemInRange = itemStarts.some(
+    (date) => date.getTime() >= today.getTime() && date.getTime() < rangeEnd.getTime()
+  );
+  const anchorDay = hasItemInRange || !earliestItem ? today : startOfDay(earliestItem);
+  const days = Array.from({ length: dayCount }, (_, index) => addDays(anchorDay, index));
   const hasItems = blocks.length > 0 || events.length > 0;
   const actionLabel = hasPlan ? t("plan.replan") : t("header.generatePlan");
   const explainLabel = isExplaining ? t("nl.explaining") : t("nl.explain");
