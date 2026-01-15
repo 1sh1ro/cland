@@ -9,6 +9,7 @@
   --accent-dark: #d24a1f;
   --line: #e3dccf;
   --shadow: 0 12px 30px rgba(31, 31, 28, 0.08);
+  --app-pad-x: 26px;
 }
 
 * {
@@ -31,7 +32,7 @@ body {
 
 .app {
   height: 100%;
-  padding: 18px 26px 22px;
+  padding: 18px var(--app-pad-x) 22px;
   display: flex;
   flex-direction: column;
 }
@@ -301,6 +302,8 @@ body {
   max-width: none;
   overflow-y: auto;
   scrollbar-width: none;
+  width: calc(100% + var(--app-pad-x));
+  padding-right: var(--app-pad-x);
 }
 
 .column.side::-webkit-scrollbar {
@@ -429,8 +432,10 @@ body {
   min-height: 0;
   overflow-y: auto;
   padding-right: 6px;
-  width: min(100%, 340px);
-  margin: 0 auto;
+  padding-bottom: 12px;
+  width: 100%;
+  max-width: 340px;
+  margin: 0;
 }
 
 .panel-footer {
@@ -441,8 +446,9 @@ body {
 
 .task-form .panel-footer {
   padding-bottom: 22px;
-  width: min(100%, 340px);
-  margin: 0 auto;
+  width: 100%;
+  max-width: 340px;
+  margin: 0;
 }
 
 .advanced-toggle {
